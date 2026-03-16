@@ -1,0 +1,108 @@
+---
+description: Current EPOS app interface that the SDK must replace
+globs:
+  - "**/*manager*"
+  - "**/*terminal*"
+  - "**/*epos*"
+alwaysApply: false
+---
+# EPOS Harness Interface Reference
+
+The EPOS demo app (`PathEPOSDemoIOS`) is the first SDK integration harness.
+The SDK must provide a drop-in replacement for `BLEUARTManager`.
+
+## Current BLEUARTManager Public Surface
+
+```swift
+final class BLEUARTManager: NSObject, ObservableObject {
+    static let shared = BLEUARTManager()
+
+    enum ConnectionState: Equatable {
+        case idle, bluetoothUnavailable, scanning, connecting, discovering, ready, disconnected
+        case error(String)
+    }
+
+    // Published state
+    @Published var state: ConnectionState
+    @Published var isReady: Bool
+    @Published var isBluetoothPoweredOn: Bool
+    @Published var logs: [String]
+    @Published var lastAckDate: Date?
+    @Published var lastResult: [String: Any]?
+    @Published var showTimeoutPrompt: Bool
+    @Published var devices: [DeviceItem]
+    @Published var connectingDeviceId: UUID?
+    @Published var connectedDeviceId: UUID?
+    @Published var transactionLog: [TerminalTransactionLogEntry]
+
+    struct DeviceItem: Identifiable, Hashable {
+        let id: UUID; let name: String; let rssi: Int
+    }
+
+    // Discovery and connection
+    func start()
+    func startScan()
+    func stopScan()
+    func stop()
+    func connect(to device: DeviceItem)
+    func disconnect()
+
+    // Transactions
+    func startSale(amountMinor: Int, currency: String, tipMinor: Int? = nil)
+    func startRefund(amountMinor: Int, currency: String, originalReqId: String? = nil, originalEntryId: UUID? = nil)
+
+    // Timeout handling
+    func continueWaiting()
+    func cancelCurrentOperation()
+
+    // Cash (local-only, no terminal involvement)
+    func addCashTransaction(amountMinor: Int, currency: String)
+    func recordCashRefund(originalEntry: TerminalTransactionLogEntry)
+
+    // Log management
+    func clearTransactionLog()
+}
+```
+
+## Views That Bind to BLEUARTManager
+
+| View | Properties Used | Methods Called |
+|------|----------------|---------------|
+| `CardProcessingView` | `state`, `isReady`, `lastResult`, `showTimeoutPrompt`, `logs` | `startSale()`, `continueWaiting()`, `cancelCurrentOperation()`, `stop()` |
+| `RefundView` / `RefundCardView` | `state`, `isReady`, `lastResult`, `showTimeoutPrompt` | `startRefund()`, `continueWaiting()`, `cancelCurrentOperation()` |
+| `SettingsView` | `state`, `isReady`, `connectedDeviceId` | `disconnect()` |
+| `DeviceListView` | `devices`, `connectingDeviceId`, `connectedDeviceId`, `isBluetoothPoweredOn` | `startScan()`, `stopScan()`, `connect(to:)` |
+| `TransactionLogView` | `transactionLog` | `clearTransactionLog()`, `startRefund()`, `recordCashRefund()` |
+| `PaymentView` / `CashPaymentView` | -- | `addCashTransaction()` |
+| `EPOSView` | `transactionLog` (for refund list) | -- |
+
+## Key Models (from Models.swift in PathEPOSDemoIOS)
+
+```swift
+struct TerminalTransactionLogEntry: Identifiable, Codable {
+    let id: UUID
+    let urn: String
+    let date: Date
+    let cardLastFour: String
+    let amountMinor: Int
+    let currency: String
+    let type: TerminalTransactionType      // .sale | .refund
+    let status: TerminalTransactionStatus  // .success | .decline
+    let reqId: String?
+    let isCash: Bool
+    let refundedAt: Date?
+    func withRefundedAt(_ date: Date) -> Self
+}
+
+enum TerminalTransactionType: String, Codable { case sale = "Sale"; case refund = "Refund" }
+enum TerminalTransactionStatus: String, Codable { case success = "Success"; case decline = "Decline" }
+```
+
+## Integration Strategy
+
+1. Define a `TerminalConnectionManager` protocol matching the public surface above
+2. Implement `SDKTerminalManager` backed by `PathTerminal` from the SDK
+3. Inject via `@EnvironmentObject` instead of `BLEUARTManager.shared` singleton
+4. Cash methods stay local (no terminal involvement)
+5. `lastResult` should become a typed `TransactionResult` instead of `[String: Any]`
+6. Transaction log population moves from raw JSON parsing to SDK event handling

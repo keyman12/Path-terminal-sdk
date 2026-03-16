@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://path.terminal/schemas/result-envelope.json",
+  "title": "ResultEnvelope",
+  "description": "Transaction result envelope with canonical status and identifiers",
+  "type": "object",
+  "required": ["requestId", "state", "amountMinor", "currency", "timestampUtc"],
+  "properties": {
+    "transactionId": {
+      "type": "string",
+      "description": "Transaction identifier from terminal"
+    },
+    "requestId": {
+      "type": "string",
+      "description": "Request ID that triggered this result"
+    },
+    "state": {
+      "type": "string",
+      "description": "Canonical transaction state",
+      "enum": [
+        "created",
+        "pending_device",
+        "card_presented",
+        "card_read",
+        "authorizing",
+        "approved",
+        "declined",
+        "cancelled",
+        "timed_out",
+        "failed",
+        "reversal_pending",
+        "reversed",
+        "refund_pending",
+        "refunded",
+        "settlement_pending",
+        "settled"
+      ]
+    },
+    "amountMinor": {
+      "type": "integer",
+      "description": "Amount in minor units (pence/cents)"
+    },
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217 currency code"
+    },
+    "tipMinor": {
+      "type": "integer",
+      "description": "Tip amount in minor units"
+    },
+    "cardLastFour": {
+      "type": "string",
+      "description": "Last four digits of card (masked)"
+    },
+    "receiptAvailable": {
+      "type": "boolean",
+      "description": "Whether receipt data is available",
+      "default": false
+    },
+    "timestampUtc": {
+      "type": "string",
+      "description": "Timestamp in ISO 8601 UTC format",
+      "format": "date-time"
+    },
+    "error": {
+      "$ref": "./error.json",
+      "description": "Error details if state indicates failure"
+    }
+  }
+}

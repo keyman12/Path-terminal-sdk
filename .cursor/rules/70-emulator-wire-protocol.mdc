@@ -1,0 +1,82 @@
+---
+description: Exact BLE wire protocol for the Path POS Emulator (Pico 2 W)
+globs:
+  - "**/*adapter*"
+  - "**/*ble*"
+  - "**/*emulator*"
+  - "**/*transport*"
+alwaysApply: false
+---
+# Emulator Wire Protocol Reference
+
+## BLE Service (Nordic UART)
+
+| UUID | Role | Direction |
+|------|------|-----------|
+| `6E400001-B5A3-F393-E0A9-E50E24DCCA9E` | Service | -- |
+| `6E400002-B5A3-F393-E0A9-E50E24DCCA9E` | RX (Write) | App -> Emulator |
+| `6E400003-B5A3-F393-E0A9-E50E24DCCA9E` | TX (Notify) | Emulator -> App |
+
+- Advertising name: `"Path POS Emulator"`
+- Advertising interval: 100
+- Encoding: UTF-8 JSON, newline-delimited (`0x0A` terminator)
+- Max buffer: 512 bytes on emulator side
+- BLE write chunking: EPOS app chunks at 20 bytes with 20ms inter-chunk delay
+
+## Request Format (App -> Emulator)
+
+```json
+{"req_id":"<UUID>","args":{...},"cmd":"<CommandName>"}
+```
+
+Field order in current EPOS app: `req_id`, `args`, `cmd`.
+
+## Response Format (Emulator -> App)
+
+### ACK (immediate)
+```json
+{"type":"ack","cmd":"<CommandName>","req_id":"<UUID>","status":"processing"}
+```
+
+### Result (after processing)
+```json
+{"type":"result","cmd":"<CommandName>","req_id":"<UUID>","status":"success"|"error",...}
+```
+
+### Card Read Event (unsolicited, after NFC tap)
+```json
+{"type":"card_read","uid":"57:A4:C9:06","card_type":"Mifare Classic 1K/4K or NTAG"}
+```
+
+## Implemented Commands
+
+### Sale
+- Request args: `{"amount":<int_minor>,"currency":"<ISO4217>","tip":<int_minor>?}`
+- Result (success): `{"amount":<int>,"currency":"<str>","status":"approved","tip":<int>?}`
+- Result (error): `{"status":"error","error":"<message>"}`
+- **Current bug (C6):** Result is sent immediately on receipt, before NFC tap. Card read is a separate unrelated event.
+
+### Refund
+- Request args: `{"amount":<int_minor>,"currency":"<ISO4217>"}`
+- EPOS also sends `"original_req_id"` but emulator ignores it
+- Result: same shape as Sale
+
+### Login
+- Request args: `{"user_id":"<string>"}`
+- Result: `{"user_id":"<echoed>"}`
+
+### Logout
+- Request args: `{}`
+- Result: `{}`
+
+### Unknown commands
+- Result: `{"status":"error","error":"Unknown command: <cmd>"}`
+
+## Known Protocol Quirks
+- Emulator may prefix responses with `"OK "` before JSON (handled by both sides but undocumented)
+- Emulator sends sale result BEFORE NFC card tap (needs fixing -- see C6 in docs/13-contradiction-resolutions.md)
+- No `txn_id` in emulator results (EPOS generates its own URN client-side)
+- No `card_last_four` in emulator results (EPOS generates random 4 digits)
+- No idempotencyKey, correlationId, sdkVersion, or other envelope metadata in current protocol
+- No GetCapabilities, GetDeviceInfo, or GetStatus commands exist on emulator yet
+- Amounts are always in minor units (pence/cents), currency is ISO 4217 string

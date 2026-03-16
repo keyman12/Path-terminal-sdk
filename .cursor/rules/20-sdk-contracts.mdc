@@ -1,0 +1,68 @@
+---
+description: Rules for SDK APIs, models, transactions, and versioning
+globs:
+  - "sdk/**/*"
+  - "ios/**/*"
+  - "android/**/*"
+  - "windows/**/*"
+  - "shared/**/*"
+  - "**/*sdk*"
+alwaysApply: false
+---
+# SDK Contract Rules
+
+## Contract philosophy
+The SDK must be simple for partner ISVs and strict internally.
+Public APIs should be predictable, typed, and narrowly scoped.
+
+## Required design characteristics
+- Typed request and response models only
+- Explicit async behavior
+- Explicit event model
+- Explicit error model
+- Consistent naming across platforms
+
+## Required request metadata
+All financial operations should include or derive:
+- requestId
+- idempotencyKey
+- merchantReference or externalReference where applicable
+- timestamp
+- terminalSessionId where applicable
+- sdkVersion
+
+## Required response characteristics
+Responses should clearly indicate:
+- final or in-progress state
+- canonical status/result
+- transaction identifiers
+- receipt availability
+- terminal/device metadata when relevant
+- error details in canonical form when failing
+
+## Platform guidance
+- iOS first, but do not hard-code iOS-specific semantics into shared models.
+- Android and Windows should be able to mirror the public contract later.
+- Keep platform wrapper code thin.
+
+## SDK surface area guidance
+Start with:
+- discover / connect / disconnect
+- getStatus / getInfo / getCapabilities
+- sale
+- refund
+- cancelActive
+- reversal
+- settlement
+- getLastTransaction / getTransactionById
+- getReceiptData / reprintLastReceipt trigger if supported
+
+## Backwards compatibility
+- Existing public fields must be preserved.
+- New fields should be additive and optional unless versioned.
+- Deprecation must be documented.
+
+## Do not
+- expose raw transport payloads as the main public API
+- expose internal emulator-only fields in production SDK models
+- invent convenience methods that bypass idempotency or state handling

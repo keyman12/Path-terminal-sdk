@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://path.terminal/schemas/capabilities.json",
+  "title": "DeviceCapabilities",
+  "description": "Device capabilities per function catalog and C7 resolution",
+  "type": "object",
+  "required": ["commands"],
+  "properties": {
+    "commands": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of supported command names (e.g. Sale, Refund, Login, Logout)"
+    },
+    "nfc": {
+      "type": "boolean",
+      "description": "NFC/contactless support",
+      "default": false
+    },
+    "display": {
+      "type": "boolean",
+      "description": "Display support",
+      "default": false
+    },
+    "receiptPrint": {
+      "type": "boolean",
+      "description": "Receipt printing support"
+    }
+  }
+}

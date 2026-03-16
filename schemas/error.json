@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://path.terminal/schemas/error.json",
+  "title": "PathError",
+  "description": "Canonical error taxonomy per Doc 04 (13 categories)",
+  "type": "object",
+  "required": ["code", "message"],
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "Canonical error code",
+      "enum": [
+        "validation",
+        "connectivity",
+        "capability",
+        "terminal_busy",
+        "timeout",
+        "user_cancelled",
+        "decline",
+        "terminal_fault",
+        "adapter_fault",
+        "protocol_mismatch",
+        "recovery_required",
+        "configuration_error",
+        "unsupported_operation"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable error message"
+    },
+    "adapterErrorCode": {
+      "type": "string",
+      "description": "Adapter-specific error code for diagnosis"
+    },
+    "recoverable": {
+      "type": "boolean",
+      "description": "Whether the operation can be retried",
+      "default": false
+    }
+  }
+}

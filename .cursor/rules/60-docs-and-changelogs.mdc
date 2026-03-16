@@ -1,0 +1,51 @@
+---
+description: Documentation and change management requirements
+globs:
+  - "**/*"
+alwaysApply: true
+---
+# Documentation and Changelog Rules
+
+## Documentation is part of the deliverable
+All meaningful architectural, protocol, or public SDK changes should be documented.
+
+## Keep aligned
+When changing behavior, update whichever of these are relevant:
+- protocol docs
+- function catalog
+- error taxonomy
+- capability matrix
+- emulator scenario docs
+- MCP docs
+- partner integration guides
+- changelog
+
+## Public change expectations
+Document:
+- what changed
+- why it changed
+- whether it is breaking, additive, or internal
+- any migration implications
+- any new test scenarios
+
+## Changelog guidance
+Track at minimum:
+- protocol version changes
+- SDK changes by platform
+- emulator scenario additions or behavior changes
+- MCP tool/resource changes
+- known limitations and fixes
+
+## Partner empathy rule
+Assume a partner engineer is integrating under time pressure.
+Documentation should help them understand:
+- the supported flows
+- the required fields
+- error behavior
+- recovery behavior
+- how to test safely
+
+## Do not
+- leave public behavior undocumented
+- add hidden operational requirements
+- assume internal tribal knowledge is sufficient

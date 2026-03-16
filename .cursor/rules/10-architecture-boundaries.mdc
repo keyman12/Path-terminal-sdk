@@ -1,0 +1,51 @@
+---
+description: Architecture boundaries and non-negotiable design rules
+globs:
+  - "**/*"
+alwaysApply: true
+---
+# Architecture Boundaries
+
+## Core principle
+Path is **protocol-first**.
+All platform SDKs, adapters, emulator behavior, and MCP tools must align to a shared protocol contract.
+
+## Required layering
+Preferred logical layers:
+1. Shared domain / protocol models
+2. Transaction state machine and error mapping
+3. Transport / adapter layer
+4. Platform SDK binding layer
+5. Demo / UI harness layer
+
+Do not collapse these layers unnecessarily.
+
+## Public contract rules
+- No breaking public API changes without an explicit version change.
+- No silent field renames.
+- No undocumented enum expansion for public result types.
+- No adapter-specific fields leaking into the shared contract unless explicitly approved and documented.
+
+## Financial safety rules
+- No hidden retries for financial operations.
+- No duplicate side effects on repeated calls.
+- All financial requests must be traceable and idempotent.
+- State transitions must be explicit and observable.
+
+## Logging and observability
+- Every externally meaningful operation must emit structured logs.
+- Use correlation identifiers consistently.
+- Never log sensitive payment data.
+- Logs must support later diagnosis and replay.
+
+## Recovery and supportability
+- Design for crash recovery and reconnection.
+- Assume production support will require replay, diagnostics, and regression capture.
+- Every bug that reaches production should be convertible into a reproducible test artifact.
+
+## Architectural anti-patterns
+Do not:
+- embed protocol rules directly in UI code
+- mix transport concerns with business semantics
+- encode terminal-specific hacks into the public SDK contract
+- create special-case flows without documenting them in the protocol docs

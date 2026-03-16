@@ -1,0 +1,56 @@
+---
+description: Testing, regression, CI, and quality expectations
+globs:
+  - "**/*"
+alwaysApply: true
+---
+# Testing and Regression Rules
+
+## General rule
+Build in small slices and attach tests to each slice.
+No meaningful behavior change should land without appropriate tests.
+
+## Minimum test categories
+When applicable, maintain:
+- unit tests for domain logic
+- contract tests for schemas and public APIs
+- emulator scenario tests
+- integration tests for SDK + emulator flows
+- regression tests for production bugs
+
+## Long-tail testing principle
+Assume a long tail of production edge cases.
+Design the test suite to grow through replayable support incidents.
+
+## Regression workflow
+For every confirmed production bug:
+1. capture diagnostics
+2. add or update a replay scenario
+3. add a failing test
+4. implement the fix
+5. verify no contract regressions
+
+## Financial operation rules
+- Test idempotency.
+- Test retries where safe.
+- Test duplicate-submission handling.
+- Test cancel/reversal/recovery paths.
+
+## Quality expectations
+- Prefer deterministic tests.
+- Keep fixtures readable.
+- Use explicit expected states.
+- Avoid brittle UI-driven tests when domain-level tests can cover the behavior.
+
+## CI expectations
+CI should eventually validate:
+- schema integrity
+- linting and formatting
+- unit tests
+- emulator scenarios
+- integration smoke tests
+
+## Do not
+- ship untested public contract changes
+- treat emulator happy-path only coverage as sufficient
+- close support bugs without adding regression coverage when reproducible

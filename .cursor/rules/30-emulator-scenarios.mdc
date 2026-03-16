@@ -1,0 +1,61 @@
+---
+description: Rules for emulator behavior, scenario design, and regression coverage
+globs:
+  - "emulator/**/*"
+  - "scenarios/**/*"
+  - "tests/**/*"
+  - "**/*emulator*"
+  - "**/*scenario*"
+alwaysApply: false
+---
+# Emulator and Scenario Rules
+
+## Emulator role
+The emulator/dongle is a first-class product asset.
+It supports:
+- partner integration testing
+- demo flows
+- regression coverage
+- support diagnosis
+- controlled fault injection
+
+## Scenario-first behavior
+Prefer a scenario-driven emulator rather than hard-coded ad hoc flows.
+Behavior should be configurable by fixtures or structured definitions.
+
+## Minimum scenario categories
+Maintain scenarios for:
+- sale approved
+- refund approved
+- decline
+- timeout
+- terminal busy
+- disconnection during transaction
+- duplicate request
+- reversal needed
+- cancel flow
+- recovery after restart
+- settlement required
+- receipt unavailable
+- unsupported capability
+
+## Regression rule
+Every production issue that can be reproduced must become:
+1. a scenario or replay artifact
+2. a failing automated test
+3. a documented support reference if user-visible
+
+## Fidelity rules
+- Emulator outputs must align with the shared protocol.
+- Emulator event ordering should match expected production semantics as closely as practical.
+- Emulator-only shortcuts must be clearly labeled.
+
+## Testability rules
+- Scenario inputs and expected outputs must be inspectable.
+- Scenarios should be deterministic unless intentionally modeling randomness.
+- Test fixtures should be easy to replay locally and in CI.
+
+## Do not
+- hardcode one-off production fixes into emulator logic without a reusable scenario
+- let emulator payloads drift away from shared schemas
+- hide state transitions that matter for support or recovery

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://path.terminal/schemas/request-envelope.json",
+  "title": "RequestEnvelope",
+  "description": "Request envelope with required metadata per Doc 04 (Protocol, State, and Errors)",
+  "type": "object",
+  "required": ["requestId", "idempotencyKey", "correlationId", "sdkVersion", "adapterVersion", "timestampUtc"],
+  "properties": {
+    "requestId": {
+      "type": "string",
+      "description": "Unique request identifier (UUID)",
+      "format": "uuid"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "description": "Idempotency key for financial operations"
+    },
+    "merchantReference": {
+      "type": "string",
+      "description": "Merchant or external reference"
+    },
+    "terminalSessionId": {
+      "type": "string",
+      "description": "Terminal session identifier"
+    },
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation ID for tracing"
+    },
+    "sdkVersion": {
+      "type": "string",
+      "description": "SDK version"
+    },
+    "adapterVersion": {
+      "type": "string",
+      "description": "Adapter version"
+    },
+    "timestampUtc": {
+      "type": "string",
+      "description": "Timestamp in ISO 8601 UTC format",
+      "format": "date-time"
+    }
+  }
+}

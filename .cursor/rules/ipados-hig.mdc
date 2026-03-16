@@ -1,0 +1,25 @@
+---
+description: iPadOS Human Interface Guidelines – apply when building or changing iPad UI
+globs: "**/*.swift"
+alwaysApply: false
+---
+
+# iPadOS development – follow Apple HIG
+
+When working on the Path EPOS Demo iPad app (or any iPad target in this repo), adhere to [Apple’s Designing for iPadOS guidelines](https://developer.apple.com/design/human-interface-guidelines/designing-for-ipados#Best-practices).
+
+## Best practices to follow
+
+- **Use the full canvas** – Layouts should use the available space; avoid phone-style narrow columns on iPad.
+- **Support multitasking** – Assume the app can run in split view or slide over; avoid assuming full-screen only.
+- **Touch targets** – Use at least 44×44 pt for tappable elements; add padding where needed.
+- **Pointer and keyboard** – Where it helps, support pointer (e.g. hover) and keyboard (shortcuts, tab order).
+- **Text selection** – Prefer native selection: use `.textSelection(.enabled)` so users get the system menu (Select, Select All, Copy). Don’t rely only on custom “Copy” buttons when the user expects tap-to-select then Copy.
+- **Navigation** – Prefer sidebars, split view, or clear hierarchy over deep stacks of full-screen pushes where a better iPad pattern exists.
+- **Sheets and popovers** – Use appropriate presentation (e.g. popover for actions from a button) instead of always full-screen sheets.
+- **Drag and drop** – Consider supporting drag and drop where it makes sense (e.g. reordering, moving items).
+- **Context menus** – Use long-press or secondary-click context menus for actions on content instead of hiding them in a generic “…” menu when the action belongs to that content.
+
+## Reference
+
+- [Designing for iPadOS – Best practices](https://developer.apple.com/design/human-interface-guidelines/designing-for-ipados#Best-practices)

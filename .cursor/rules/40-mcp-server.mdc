@@ -1,0 +1,63 @@
+---
+description: Rules for MCP server tools, resources, prompts, and diagnostics
+globs:
+  - "mcp/**/*"
+  - "server/**/*"
+  - "tools/**/*"
+  - "resources/**/*"
+  - "prompts/**/*"
+  - "**/*mcp*"
+alwaysApply: false
+---
+# MCP Server Rules
+
+## MCP role
+The MCP server is a product surface for AI-assisted integration, testing, and diagnosis.
+It should expose Path capabilities in a stable and documented way.
+
+## Supported MCP concepts
+Prefer explicit use of:
+- tools for actions and diagnostics
+- resources for docs, schemas, capabilities, examples, and logs
+- prompts for guided integration and troubleshooting workflows
+
+## Minimum useful MCP tools
+Design toward tools such as:
+- list_terminal_capabilities
+- start_emulator_scenario
+- send_sale
+- send_refund
+- send_void or reversal equivalents
+- get_transaction_status
+- get_last_receipt
+- run_test_suite
+- inspect_logs
+- explain_error_code
+- validate_partner_config
+
+## MCP resource guidance
+Resources should include:
+- protocol specification
+- function catalog
+- example payloads
+- error taxonomy
+- capability matrix
+- support guides
+- changelog
+- known limitations
+
+## Tool behavior rules
+- Tool inputs must validate against schemas.
+- Tool outputs must be structured and predictable.
+- Tools must avoid ambiguous side effects.
+- Financial test tools must respect idempotency and scenario boundaries.
+
+## Diagnostics rules
+- MCP should support remote diagnosis workflows where possible.
+- Prefer read-only inspection tools for production support unless explicitly designed otherwise.
+- Diagnostic bundles should be exportable and replayable.
+
+## Do not
+- expose undocumented internal actions through MCP
+- create tools without docs and examples
+- let MCP schemas drift from SDK or protocol schemas

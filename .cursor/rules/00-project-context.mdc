@@ -1,0 +1,52 @@
+---
+description: Core project context for Path terminal SDK, emulator, MCP, and EPOS harness
+globs:
+  - "**/*"
+alwaysApply: true
+---
+# Path Project Context
+
+This repository is part of **Path**, a semi-integrated POS terminal SDK and test platform for ISVs.
+
+## Product intent
+Path provides a stable abstraction layer between partner EPOS software and payment terminals.
+The initial delivery scope is:
+- iOS SDK first
+- Existing EPOS app as the first integration harness
+- Existing terminal emulator/dongle as the primary test target
+- MCP server as a first-class AI integration and diagnostics layer
+
+## Working assumptions
+- The public contract must be stable and versioned.
+- The system is **protocol-first**, not platform-first.
+- Platform SDKs are thin bindings over a shared domain model.
+- The emulator is not a toy; it is a long-term integration, regression, demo, and support asset.
+- The MCP server is part of the product, not an afterthought.
+
+## Existing assets
+When working in this project, assume these assets either already exist or are intended to exist:
+- EPOS demo app (first iOS harness)
+- Terminal emulator / dongle
+- MCP server repository or skeleton
+- Planning docs under `docs/`
+
+## Delivery direction
+Current priority order:
+1. Shared protocol, models, state machine, and error taxonomy
+2. iOS SDK skeleton and integration with emulator
+3. Emulator scenario engine and regression coverage
+4. MCP v0.1 for docs, tools, and diagnostics
+5. Additional platforms later (Android, Windows)
+
+## Non-goals for early work
+- Do not create bespoke platform-specific public contracts.
+- Do not invent processor-specific fields unless explicitly documented.
+- Do not tightly couple the UI harness to protocol internals.
+- Do not optimize for production terminal vendors before the emulator contract is stable.
+
+## How to behave
+Before making changes:
+1. Read the relevant docs in `docs/`
+2. Read all applicable rule files under `.cursor/rules/`
+3. Prefer small, auditable changes
+4. Surface contradictions between code and docs before broad refactors
