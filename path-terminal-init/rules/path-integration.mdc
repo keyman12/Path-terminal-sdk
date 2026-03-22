@@ -1,0 +1,213 @@
+---
+description: >
+  Rules for AI agents integrating the Path Terminal SDK into an iOS EPOS
+  application. Apply when the user asks to integrate payments, connect to
+  a payment terminal, wire a sale or refund, or set up the Path emulator.
+globs:
+  - "**/*.swift"
+  - "**/Info.plist"
+  - "**/Package.swift"
+  - "**/*.xcodeproj/**"
+alwaysApply: false
+---
+
+# Path Terminal SDK — Integration Agent Rules
+
+You are integrating the Path Terminal SDK into an existing iOS EPOS application.
+Your job is to wire card-present payments (sale, refund, receipts) with minimal
+disruption to the ISV's existing codebase.
+
+You have access to the Path MCP server at mcp.path2ai.tech which provides:
+- Resources: docs, API reference, code examples, schemas
+- Tools: get_code_example, explain_error, validate_integration,
+         get_integration_checklist, get_info_plist_requirements
+- Prompts: integrate-path-sale, integrate-path-refund, full-path-integration,
+           setup-emulator, diagnose-path-error
+
+Always use MCP tools before writing code. Never guess at API patterns.
+
+---
+
+## Before writing any code
+
+1. Read the integration checklist: call get_integration_checklist
+2. Inspect the project structure — identify:
+   - The checkout or payment trigger point (ViewModel, button action, coordinator)
+   - The order confirmation or receipt screen
+   - The order history or transaction list (for refunds)
+   - The app entry point (App struct or AppDelegate)
+3. Report your findings to the developer with specific file names and line references:
+   "I found your checkout in CheckoutViewModel.swift (line 47), your payment
+   button in PaymentView.swift (line 23), and your order confirmation in
+   OrderCompleteView.swift. I recommend wiring Path here, here, and here."
+4. Wait for the developer to confirm before making any changes.
+
+### Finding the checkout flow — search for:
+- ViewModels or classes named with "checkout", "payment", "cart", "order", "pay"
+- Button actions that trigger a payment or navigate to a payment screen
+- Navigation to screens named "confirmation", "receipt", "success", "complete"
+- Existing payment SDK calls (Stripe, Square, Adyen, etc.) — Path goes alongside these
+
+### Finding receipt display — search for:
+- Views or screens named "receipt", "confirmation", "orderComplete", "orderDetail"
+- Text displaying amount, date, card info
+
+### Finding refund entry points — search for:
+- Order history screens, transaction lists, admin panels
+- Buttons or actions named "refund", "return", "cancel order"
+
+---
+
+## Integration architecture
+
+Always follow this pattern — it matches the reference implementation in the
+Path EPOS demo and is the pattern the emulator and MCP server are designed for.
+
+**1. Create a single PathTerminalManager class at app scope:**
+
+```swift
+@MainActor
+final class PathTerminalManager: ObservableObject {
+    let terminal: PathTerminal
+
+    init() {
+        // BLEPathTerminalAdapter connects to the Path Pico W emulator over Bluetooth.
+        // Additional adapters (WiFi, USB) will be available in future releases.
+        // Swapping adapters requires only changing this one line.
+        let adapter = BLEPathTerminalAdapter(
+            sdkVersion: "0.1.0",
+            adapterVersion: "0.1.0"
+        )
+        terminal = PathTerminal(adapter: adapter)
+    }
+}
+```
+
+Call `get_code_example` with operation "init" for the current full pattern.
+
+**2. Hold it at app scope using @StateObject in the App struct or root view.**
+Never create a new PathTerminal instance per screen or per transaction.
+
+**3. Subscribe to terminal.events in a Task for connection and transaction
+state updates.** Wire connection state to the ISV's existing UI patterns.
+
+**4. Wire sale at the checkout trigger point.** Call `get_code_example` with
+operation "sale" before writing any sale code.
+
+**5. Wire refund from the order history or transaction detail screen.**
+Always pass `originalTransactionId`. Call `get_code_example` with operation
+"refund" before writing any refund code.
+
+> **Note on adapters:** `BLEPathTerminalAdapter` is the current adapter for the
+> Path Pico W emulator over Bluetooth. WiFi and USB adapters will be available
+> in future releases. `PathTerminalAdapter` is the protocol — swapping adapters
+> is a first-class concept requiring only a one-line change.
+
+---
+
+## Always use the correct patterns
+
+**ALWAYS:**
+- Use `TransactionRequest.sale(...)` and `TransactionRequest.refund(...)` factory methods
+- Use `RequestEnvelope.create(sdkVersion:adapterVersion:)` — never build envelopes manually
+- Handle all `TransactionState` cases — at minimum: `.approved`, `.declined`, `.timedOut`, `.failed`
+- Catch `PathError` and check `.recoverable` — if true, a retry is safe; if false, do not retry
+- Call `validate_integration` with your code before finalising — it checks for common mistakes
+- Import `PathTerminalSDK` and `PathCoreModels` — both are required
+
+**NEVER:**
+- Use the raw `TransactionRequest` initialiser directly — always use the factory methods
+- Store or log card data (maskedPan is acceptable, nothing else from the card)
+- Retry a financial operation without generating a new `idempotencyKey`
+- Assume a transaction state transition — always read `result.state` explicitly
+- Restructure the ISV's existing code to accommodate Path — add alongside, do not replace
+- Skip error handling — always catch `PathError` with meaningful recovery logic
+
+**AMOUNTS:** All amounts are in minor currency units.
+- 100 = £1.00 GBP
+- 1250 = £12.50 GBP
+- Never pass decimal amounts.
+
+---
+
+## When to use each MCP tool
+
+**get_code_example** — call this BEFORE writing any integration code.
+Pass the operation name: "init", "discover", "sale", "refund",
+"receipt", "events", "capabilities", "install"
+The returned example is the current, compilable, correct pattern.
+
+**explain_error** — call this whenever a PathError is encountered or
+when the developer reports an error code.
+Returns: meaning, common causes, recoverable flag, suggested fix.
+Covers all 13 PathErrorCode values.
+
+**validate_integration** — call this AFTER writing integration code,
+before presenting it to the developer for review.
+Pass the Swift code snippet as a string.
+Returns a list of warnings for common mistakes.
+
+**get_integration_checklist** — call this at the start of any integration
+session to show the developer the full journey and what is complete.
+
+**get_info_plist_requirements** — call this when checking or setting up
+BLE permissions. Returns ready-to-paste Info.plist XML.
+
+### MCP resources to read for context:
+- `path://docs/01-product-brief` — what Path is and what it does
+- `path://docs/04-protocol-state-errors` — canonical state machine (read before
+  wiring any transaction handling)
+- `path://api-reference` — every class, struct, enum, and method
+- `path://examples/{operation}` — standalone code examples
+- `path://integration-checklist` — readiness checklist
+
+---
+
+## Testing the integration
+
+After wiring the code, guide the developer through a first test sale:
+
+1. Verify Info.plist has BLE permissions.
+   Call `get_info_plist_requirements` if unsure.
+
+2. Power on the Path Pico W emulator and ensure it is within BLE range (2-3 metres).
+
+3. Run the app. Navigate to the checkout screen.
+
+4. Trigger payment — the app should discover and connect to the emulator.
+   Connection state should progress: scanning → connecting → connected (ready).
+
+5. Confirm the sale — the emulator waits for card presentation.
+   Tap the NFC tag on the emulator to simulate card present.
+
+6. Verify the result:
+   - `result.state == .approved`
+   - `result.transactionId` is non-nil
+   - `result.receiptAvailable == true` (if emulator supports it)
+
+7. Fetch receipt data: `terminal.getReceiptData(transactionId: result.transactionId!)`
+   Verify `merchantReceipt` and `customerReceipt` fields are populated.
+
+> Additional connection methods (WiFi, USB) will be available in future releases.
+> The same test flow applies — only the adapter changes.
+
+---
+
+## Explaining changes
+
+After every set of changes, provide a summary listing:
+- Each file modified and what was changed
+- Why that location was chosen
+- What the developer needs to do next (if anything manual is required)
+
+Keep explanations brief and specific. The developer wants to understand
+what changed and why, not a tutorial on the Path SDK.
+
+**Example:**
+```
+I modified 3 files:
+ - PathTerminalManager.swift (new) — single point of SDK access, held at app scope
+ - MyApp.swift — injected PathTerminalManager as @StateObject
+ - CheckoutViewModel.swift — replaced the simulated payment call with terminal.sale()
+ Next: run the app and connect the emulator to test.
+```

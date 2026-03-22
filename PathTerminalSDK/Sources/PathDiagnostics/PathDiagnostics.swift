@@ -1,8 +1,12 @@
-/// Path Diagnostics - Support bundle, health check, observability (Phase 4)
-/// Phase 0: Placeholder until diagnostics are implemented
+/// Path Diagnostics — re-exports support bundle helpers from ``PathCoreModels``.
 import Foundation
 import PathCoreModels
 
 public enum PathDiagnostics {
     public static let diagnosticsVersion = "0.1.0"
+
+    /// Pretty-printed JSON for email or clipboard.
+    public static func formatSupportBundle(_ snapshot: SupportBundleSnapshotV1) throws -> String {
+        try SupportBundleSnapshotV1.encodePrettyString(snapshot)
+    }
 }

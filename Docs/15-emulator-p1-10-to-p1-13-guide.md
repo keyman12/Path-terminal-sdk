@@ -304,11 +304,31 @@ Use `import urandom` at the top if needed for the serial.
 
 ---
 
+## P1-14: Cancel and GetTransactionStatus (iOS SDK)
+
+**Reference implementation (merge into your Pico `ble_service.py`):** `emulator-reference/ble_service_p1_14_handlers.py` in this repo.
+
+The iOS `BLEPathTerminalAdapter` sends these commands. If the firmware does not handle them, it responds with `Unknown command: …` and the SDK surfaces `unsupportedOperation`.
+
+### Cancel
+
+- Request: `cmd: "Cancel"`, `args: {}`
+- Behaviour: clear `pending_result` if present, dismiss “tap card” UI, send `status: success` (or an error if nothing to cancel).
+
+### GetTransactionStatus
+
+- Request: `cmd: "GetTransactionStatus"`, `args: {"req_id": "<original Sale/Refund request id>"}`
+- Behaviour: if that `req_id` matches `pending_result`, return `txn_status` such as `processing` / `pending_device`; if the last completed result for that id is known, return the same fields as Sale/Refund (`status`, `amount`, `currency`, `txn_id`, …).
+
+Add handlers in `_process_json_message` alongside P1-12 commands.
+
+---
+
 ## File Summary
 
 | File | Changes |
 |------|---------|
-| `ble_service.py` | `pending_result`, `send_pending_result`, defer result in `_process_sale_json`/`_process_refund_json`, add `GetCapabilities`/`GetDeviceInfo`/`GetStatus`, add `txn_id`/`card_last_four` to results |
+| `ble_service.py` | `pending_result`, `send_pending_result`, defer result in `_process_sale_json`/`_process_refund_json`, add `GetCapabilities`/`GetDeviceInfo`/`GetStatus`, add `txn_id`/`card_last_four` to results; optional P1-14 `Cancel` / `GetTransactionStatus` |
 | `PathEmulator.py` | Call `send_pending_result` from `read_nfc_card`, add 30s timeout in main loop, pass `card_last_four` from NFC UID |
 
 ---

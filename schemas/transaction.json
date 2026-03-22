@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://path.terminal/schemas/transaction.json",
+  "title": "TransactionRequestBody",
+  "description": "Financial request body (amounts, currency) aligned with PathCoreModels.TransactionRequest for Phase 1",
+  "type": "object",
+  "required": ["amountMinor", "currency"],
+  "properties": {
+    "amountMinor": {
+      "type": "integer",
+      "description": "Amount in minor units (pence/cents)"
+    },
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217 currency code",
+      "minLength": 3,
+      "maxLength": 3
+    },
+    "tipMinor": {
+      "type": "integer",
+      "description": "Optional tip in minor units (sale)"
+    },
+    "originalTransactionId": {
+      "type": "string",
+      "description": "Original transaction id for refund"
+    },
+    "originalRequestId": {
+      "type": "string",
+      "description": "Original request id for refund correlation"
+    }
+  }
+}

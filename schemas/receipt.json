@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://path.terminal/schemas/receipt.json",
+  "title": "ReceiptData",
+  "description": "Merchant and customer receipt payloads (GetReceipt). Field names align with CardReceiptFields in PathCoreModels.",
+  "type": "object",
+  "required": ["transactionId", "merchantReceipt", "customerReceipt"],
+  "properties": {
+    "transactionId": { "type": "string" },
+    "requestId": { "type": "string" },
+    "timestampUtc": { "type": "string", "format": "date-time" },
+    "merchantReceipt": { "$ref": "#/definitions/receiptCopy" },
+    "customerReceipt": { "$ref": "#/definitions/receiptCopy" }
+  },
+  "definitions": {
+    "receiptCopy": {
+      "type": "object",
+      "description": "Single receipt copy (merchant or cardholder)",
+      "properties": {
+        "copyLabel": { "type": "string" },
+        "txnType": { "type": "string" },
+        "amount": { "type": "integer" },
+        "currency": { "type": "string" },
+        "cardScheme": { "type": "string" },
+        "maskedPan": { "type": "string" },
+        "entryMode": { "type": "string" },
+        "aid": { "type": "string" },
+        "verification": { "type": "string" },
+        "authCode": { "type": "string" },
+        "merchantId": { "type": "string" },
+        "terminalId": { "type": "string" },
+        "txnRef": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string" },
+        "retainMessage": { "type": "string" }
+      }
+    }
+  }
+}

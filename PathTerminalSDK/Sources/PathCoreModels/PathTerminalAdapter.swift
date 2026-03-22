@@ -30,6 +30,14 @@ public protocol PathTerminalAdapter: Sendable {
     /// Get receipt data for transaction (may throw unsupported_operation)
     func getReceiptData(transactionId: String) async throws -> ReceiptData
 
+    /// Ask the terminal to cancel the in-flight transaction (if any).
+    /// May throw ``PathError`` with ``PathErrorCode/unsupportedOperation`` when the firmware does not implement cancel.
+    func cancelActiveTransaction() async throws
+
     /// Whether currently connected to a device
     var isConnected: Bool { get }
+
+    /// Called by the adapter when the hardware initiates a disconnect (e.g. peripheral goes out of range or resets).
+    /// PathTerminal wires this during connect() to emit a .connectionStateChanged(.disconnected) event upstream.
+    var onHardwareDisconnect: (@Sendable () -> Void)? { get set }
 }

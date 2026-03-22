@@ -15,5 +15,14 @@ DerivedData/
 # Cursor / AI tooling
 cursor/
 
+# Local MCP endpoint (use your own or env)
+.cursor/mcp.json
+
+# Cursor internal planning (optional)
+.cursor/plans/
+
+# path-terminal-init npm install
+path-terminal-init/node_modules/
+
 # Env / secrets
 *.env

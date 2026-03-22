@@ -3,6 +3,8 @@
 A clean project pack for the Path semi-integrated terminal SDK initiative.
 
 ## Included
+- `protocol-v0.1-draft.md` — published draft index + changelog pointer
+- `../schemas/README.md` — JSON Schema index
 - `01-product-brief.md`
 - `02-architecture.md`
 - `03-function-catalog.md`

@@ -7,6 +7,8 @@ public final class MockPathTerminalAdapter: PathTerminalAdapter, @unchecked Send
     public var isConnected: Bool { _isConnected }
     private var _isConnected = false
 
+    public var onHardwareDisconnect: (@Sendable () -> Void)?
+
     public var discoverResult: Result<[DiscoveredDevice], Error> = .success([])
     public var connectError: Error?
     public var saleResult: Result<TransactionResult, Error>?
@@ -15,6 +17,7 @@ public final class MockPathTerminalAdapter: PathTerminalAdapter, @unchecked Send
     public var deviceInfoResult: Result<DeviceInfo, Error> = .failure(PathError(code: .unsupportedOperation, message: "Not implemented"))
     public var transactionStatusResult: Result<TransactionResult, Error> = .failure(PathError(code: .unsupportedOperation, message: "Not implemented"))
     public var receiptDataResult: Result<ReceiptData, Error> = .failure(PathError(code: .unsupportedOperation, message: "Not implemented"))
+    public var cancelError: Error?
 
     public var delayMs: UInt64 = 0
 
@@ -36,6 +39,13 @@ public final class MockPathTerminalAdapter: PathTerminalAdapter, @unchecked Send
 
     public func disconnect() async throws {
         _isConnected = false
+    }
+
+    /// Simulates a hardware-initiated disconnect (e.g. emulator goes out of range).
+    /// Use in tests to verify the SDK handles unexpected drops correctly.
+    public func simulateHardwareDisconnect() {
+        _isConnected = false
+        onHardwareDisconnect?()
     }
 
     public func sale(request: TransactionRequest) async throws -> TransactionResult {
@@ -114,5 +124,10 @@ public final class MockPathTerminalAdapter: PathTerminalAdapter, @unchecked Send
         case .success(let r): return r
         case .failure(let e): throw e
         }
+    }
+
+    public func cancelActiveTransaction() async throws {
+        if delayMs > 0 { try await Task.sleep(nanoseconds: delayMs * 1_000_000) }
+        if let cancelError { throw cancelError }
     }
 }

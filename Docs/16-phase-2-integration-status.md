@@ -25,21 +25,16 @@
 ## Remaining Work
 
 ### 5. EnvironmentObject Injection
-- Replace `@StateObject private var ble = BLEUARTManager.shared` with `@EnvironmentObject var terminal: TerminalConnectionManager`
-- Inject in app entry: `.environmentObject(BLEUARTManager.shared)` or `.environmentObject(SDKTerminalManager())`
-- **Views to update:** CardProcessingView, RefundView, SettingsView, DeviceListView, TransactionLogView, PaymentView
+- **Done** in current EPOS tree: `AppTerminalManager` is injected at the app root; views use `@EnvironmentObject`.
 
 ### 6. Developer Diagnostics Panel
-- Add section in Settings or new view
-- Show: SDK version, protocol version, connection state, last error, logs
+- **Done:** Settings → Developer → Diagnostics (versions, connection, logs). **Support bundle:** “Copy support bundle (JSON)” builds a redacted `SupportBundleSnapshotV1` (PathCoreModels) for both `path_sdk` and `native_ble` integrations.
 
-### 7. Cancel in BLEPathTerminalAdapter
-- Implement `cancelActiveTransaction` in adapter (currently throws)
-- Wire through to SDKTerminalManager’s `cancelCurrentOperation`
+### 7. Cancel
+- **SDK repo:** BLE `Cancel` command + `PathTerminal.cancelActiveTransaction()`. **EPOS SDK line:** `SDKTerminalManager.cancelCurrentOperation()` cancels local tasks and calls `terminal.cancelActiveTransaction()`.
 
-### 8. Bluetooth Check in Adapter
-- Add Bluetooth availability check in BLEPathTerminalAdapter
-- Map to `bluetoothUnavailable` state
+### 8. Bluetooth state (SDK path)
+- **Done:** `BLEPathTerminalAdapter` exposes `isBluetoothPoweredOn` and `onBluetoothStateChange`; `SDKTerminalManager` updates UI state when Bluetooth is toggled.
 
 ### 9. Preserve Non-SDK Build
 - **Option A:** Two schemes – "PathEPOSDemo" (uses BLE), "PathEPOSDemo SDK" (uses SDK) with `USE_PATH_SDK` flag

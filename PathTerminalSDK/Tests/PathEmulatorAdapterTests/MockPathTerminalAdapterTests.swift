@@ -31,6 +31,22 @@ final class MockPathTerminalAdapterTests: XCTestCase {
         XCTAssertFalse(adapter.isConnected)
     }
 
+    func testCancelSucceedsByDefault() async throws {
+        let adapter = MockPathTerminalAdapter()
+        try await adapter.cancelActiveTransaction()
+    }
+
+    func testCancelPropagatesError() async throws {
+        let adapter = MockPathTerminalAdapter()
+        adapter.cancelError = PathError(code: .terminalBusy, message: "Terminal busy", recoverable: true)
+        do {
+            try await adapter.cancelActiveTransaction()
+            XCTFail("expected error")
+        } catch let e as PathError {
+            XCTAssertEqual(e.code, .terminalBusy)
+        }
+    }
+
     func testSaleWithCustomResult() async throws {
         let adapter = MockPathTerminalAdapter()
         let envelope = RequestEnvelope.create(sdkVersion: "0.1.0", adapterVersion: "0.1.0")

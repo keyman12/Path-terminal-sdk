@@ -1,4 +1,5 @@
 // swift-tools-version: 5.9
+// PathTerminalSDK — release 0.1.1 (BLE connect stability; see README / Docs/CHANGELOG.md).
 import PackageDescription
 
 let package = Package(

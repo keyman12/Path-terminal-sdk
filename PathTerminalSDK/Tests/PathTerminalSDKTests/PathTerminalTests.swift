@@ -78,6 +78,52 @@ final class PathTerminalTests: XCTestCase {
         XCTAssertFalse(result.isApproved)
     }
 
+    func testCancelWithMockAdapter() async throws {
+        let adapter = MockPathTerminalAdapter()
+        let terminal = PathTerminal(adapter: adapter)
+        try await terminal.cancelActiveTransaction()
+    }
+
+    func testCancelEmitsCancelledState() async throws {
+        let adapter = MockPathTerminalAdapter()
+        let terminal = PathTerminal(adapter: adapter)
+        var sawCancelled = false
+        let task = Task {
+            for await event in terminal.events {
+                if case .transactionStateChanged(let s) = event, s == .cancelled {
+                    sawCancelled = true
+                    break
+                }
+            }
+        }
+        await Task.yield()
+        try await terminal.cancelActiveTransaction()
+        try await Task.sleep(nanoseconds: 150_000_000)
+        task.cancel()
+        XCTAssertTrue(sawCancelled)
+    }
+
+    func testGetTransactionStatusWithMockAdapter() async throws {
+        let adapter = MockPathTerminalAdapter()
+        let envelope = RequestEnvelope.create(sdkVersion: "0.1.0", adapterVersion: "0.1.0")
+        adapter.transactionStatusResult = .success(TransactionResult(
+            transactionId: "txn-status-1",
+            requestId: envelope.requestId,
+            state: .approved,
+            amountMinor: 500,
+            currency: "GBP",
+            tipMinor: nil,
+            cardLastFour: "4242",
+            receiptAvailable: true,
+            timestampUtc: ISO8601DateFormatter().string(from: Date()),
+            error: nil
+        ))
+        let terminal = PathTerminal(adapter: adapter)
+        let result = try await terminal.getTransactionStatus(requestId: envelope.requestId)
+        XCTAssertEqual(result.state, .approved)
+        XCTAssertEqual(result.transactionId, "txn-status-1")
+    }
+
     func testGetReceiptDataWithMockAdapter() async throws {
         let adapter = MockPathTerminalAdapter()
         let merchant = CardReceiptFields(

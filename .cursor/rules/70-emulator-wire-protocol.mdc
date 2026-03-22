@@ -69,14 +69,25 @@ Field order in current EPOS app: `req_id`, `args`, `cmd`.
 - Request args: `{}`
 - Result: `{}`
 
+### Cancel (SDK / iOS)
+- Request: `{"req_id":"<UUID>","args":{},"cmd":"Cancel"}`
+- Success: `{"type":"result","cmd":"Cancel","req_id":"<UUID>","status":"success"}` (additional fields optional)
+- Error: `{"status":"error","error":"<message>"}` — if firmware does not implement the command, use the same shape as unknown commands below.
+
+### GetTransactionStatus (SDK)
+- Request: `{"req_id":"<UUID>","args":{"req_id":"<original_transaction_request_id>"},"cmd":"GetTransactionStatus"}`
+- Success: same payload shape as Sale/Refund result for a final outcome, or include `txn_status` / `transaction_status` when the envelope `status` is `success` (e.g. `pending`, `approved`, `declined`).
+- Use `original_req_id` / `request_id` in the result body when echoing the queried transaction’s request id.
+
+### GetCapabilities / GetDeviceInfo / GetStatus
+- See `Docs/15-emulator-p1-10-to-p1-13-guide.md` (P1-12). The iOS adapter may still return hardcoded capabilities when the firmware is older.
+
 ### Unknown commands
-- Result: `{"status":"error","error":"Unknown command: <cmd>"}`
+- Result: `{"status":"error","error":"Unknown command: <cmd>"}` — the SDK maps this to `unsupported_operation` for optional operations.
 
 ## Known Protocol Quirks
 - Emulator may prefix responses with `"OK "` before JSON (handled by both sides but undocumented)
-- Emulator sends sale result BEFORE NFC card tap (needs fixing -- see C6 in docs/13-contradiction-resolutions.md)
-- No `txn_id` in emulator results (EPOS generates its own URN client-side)
-- No `card_last_four` in emulator results (EPOS generates random 4 digits)
-- No idempotencyKey, correlationId, sdkVersion, or other envelope metadata in current protocol
-- No GetCapabilities, GetDeviceInfo, or GetStatus commands exist on emulator yet
+- P1-10 fixes sale ordering (ACK → NFC → result); see `Docs/15-emulator-p1-10-to-p1-13-guide.md`
+- Older firmware may omit `txn_id` / `card_last_four`; newer P1-11 builds add them
+- Extra envelope fields may be ignored by the emulator (P1-13)
 - Amounts are always in minor units (pence/cents), currency is ISO 4217 string
