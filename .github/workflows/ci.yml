@@ -1,0 +1,42 @@
+# Path-terminal-sdk — continuous integration
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  swift:
+    name: Swift (PathTerminalSDK)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # XCTest requires the Xcode toolchain (default on GitHub-hosted macOS runners).
+      - name: Swift test
+        working-directory: PathTerminalSDK
+        run: xcrun swift test
+
+  mcp:
+    name: path-mcp-server (build + typecheck)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: path-mcp-server/package-lock.json
+
+      - name: Install & verify
+        working-directory: path-mcp-server
+        run: |
+          npm ci
+          npm run build
+          npm run typecheck

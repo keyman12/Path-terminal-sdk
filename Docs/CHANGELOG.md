@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Added
+- **Repository landing & dev guide** — root `README.md`, `DEVELOPMENT.md` (three-repo layout, SPM, clones, MCP/emulator pointers).
+- **CI** — `.github/workflows/ci.yml`: `swift test` on `PathTerminalSDK` (macOS), `npm ci` + build + typecheck for `path-mcp-server` (Ubuntu).
 - **Protocol v0.1 draft** — `Docs/protocol-v0.1-draft.md`; schemas `transaction.json`, `schemas/receipt.json`, `schemas/README.md`.
 - **Emulator P1-14 reference** — `emulator-reference/` (Cancel + GetTransactionStatus merge snippets for **Emulator 2 Build** `ble_service.py`).
 - **Emulator wire JSON mapping tests** — `EmulatorWireJsonMappingTests` (CI-friendly, no hardware).

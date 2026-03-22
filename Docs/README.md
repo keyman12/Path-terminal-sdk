@@ -2,6 +2,8 @@
 
 A clean project pack for the Path semi-integrated terminal SDK initiative.
 
+**Repository layout, SPM, and the three main GitHub repos:** see [**`DEVELOPMENT.md`**](../DEVELOPMENT.md) at the repository root.
+
 ## Included
 - `protocol-v0.1-draft.md` — published draft index + changelog pointer
 - `../schemas/README.md` — JSON Schema index
