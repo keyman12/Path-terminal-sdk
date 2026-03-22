@@ -33,7 +33,9 @@ Clone each repo **separately** (sibling folders are fine):
 
 Avoid maintaining **two** copies of the same app tree on disk (e.g. nested git repos pointing at the same remote); pick **one** checkout of **Path-epos-demo-sdk** as canonical for day-to-day work.
 
-## SDK: tests & CI
+## SDK: tests and continuous integration (CI)
+
+### Running tests on your Mac
 
 From the **Path-terminal-sdk** clone:
 
@@ -42,7 +44,16 @@ cd PathTerminalSDK
 xcrun swift test
 ```
 
-On macOS, use Xcode’s Swift (`xcode-select`) so `XCTest` is available. CI runs `swift test` on push/PR to `main` (see `.github/workflows/ci.yml`).
+On macOS, use Xcode’s Swift toolchain (`xcode-select`) so **`XCTest`** is available (see `PathTerminalSDK/README.md`).
+
+### What “CI” is here
+
+**Continuous integration (CI)** is automation that runs **after each push** (and on **pull requests**) so the **same checks** run every time, on a **fresh machine**, without relying on one developer’s laptop. In this repository, **GitHub Actions** reads `.github/workflows/ci.yml` and:
+
+- On a **macOS** runner: installs nothing special beyond the runner image, then runs **`xcrun swift test`** inside **`PathTerminalSDK/`** — i.e. the full Swift package test suite.
+- On a **Linux** runner: runs **`npm ci`**, **`npm run build`**, and **`npm run typecheck`** inside **`path-mcp-server/`** so the MCP server still builds when you change TypeScript or dependencies.
+
+If those commands fail, the commit/PR shows a **red** check in GitHub; if they pass, **green**. That is separate from **releasing** a version tag — CI is “does this revision build and pass tests,” not “ship to partners.”
 
 ## MCP server (optional)
 
