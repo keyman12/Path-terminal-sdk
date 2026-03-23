@@ -3,6 +3,7 @@ import XCTest
 @testable import PathEmulatorAdapter
 import PathCoreModels
 
+@MainActor
 final class PathTerminalTests: XCTestCase {
     func testSaleWithMockAdapter() async throws {
         let adapter = MockPathTerminalAdapter()
