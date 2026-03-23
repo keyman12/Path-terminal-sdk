@@ -50,7 +50,7 @@ On macOS, use Xcode’s Swift toolchain (`xcode-select`) so **`XCTest`** is avai
 
 **Continuous integration (CI)** is automation that runs **after each push** (and on **pull requests**) so the **same checks** run every time, on a **fresh machine**, without relying on one developer’s laptop. In this repository, **GitHub Actions** reads `.github/workflows/ci.yml` and:
 
-- On a **macOS** runner: installs nothing special beyond the runner image, then runs **`xcrun swift test`** inside **`PathTerminalSDK/`** — i.e. the full Swift package test suite.
+- On a **macOS** runner: selects **`/Applications/Xcode.app`** (full Xcode) before testing — the image also has Command Line Tools only, and **`swift test` needs XCTest** from the full Xcode toolchain. Then runs **`xcrun swift test`** inside **`PathTerminalSDK/`**.
 - On a **Linux** runner: runs **`npm ci`**, **`npm run build`**, and **`npm run typecheck`** inside **`path-mcp-server/`** so the MCP server still builds when you change TypeScript or dependencies.
 
 If those commands fail, the commit/PR shows a **red** check in GitHub; if they pass, **green**. That is separate from **releasing** a version tag — CI is “does this revision build and pass tests,” not “ship to partners.”

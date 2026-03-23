@@ -15,7 +15,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # XCTest requires the Xcode toolchain (default on GitHub-hosted macOS runners).
+      # Use full Xcode, not Command Line Tools only — otherwise `swift test` fails with
+      # "no such module 'XCTest'" (CLT Swift does not ship XCTest for SPM tests).
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcode-select -p
+          xcrun swift --version
+
       - name: Swift test
         working-directory: PathTerminalSDK
         run: xcrun swift test
