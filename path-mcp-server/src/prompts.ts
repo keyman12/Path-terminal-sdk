@@ -1,24 +1,24 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z, type ZodRawShape } from "zod";
+import { z } from "zod";
 
-// Pre-declare prompt schemas to avoid "type instantiation too deep" errors.
-const salePromptArgs = {
+// z.object(...) keeps MCP SDK PromptCallback inference shallow (avoids TS2589).
+const salePromptArgs = z.object({
   project_type: z
     .string()
     .optional()
     .default("unknown")
     .describe("The UI framework: swiftui, uikit, or unknown (default)."),
-} satisfies ZodRawShape;
+});
 
-const fullIntegrationArgs = {
+const fullIntegrationArgs = z.object({
   project_type: z
     .string()
     .optional()
     .default("unknown")
     .describe("The UI framework: swiftui, uikit, or unknown (default)."),
-} satisfies ZodRawShape;
+});
 
-const diagnoseArgs = {
+const diagnoseArgs = z.object({
   error_code: z
     .string()
     .describe("The PathErrorCode string from the error (e.g. 'connectivity', 'timeout', 'decline')."),
@@ -26,15 +26,21 @@ const diagnoseArgs = {
     .string()
     .optional()
     .describe("Optional: additional context about when the error occurred."),
-} satisfies ZodRawShape;
+});
 
 export function registerPrompts(server: McpServer): void {
+  // Zod object schemas + MCP SDK generics hit TS2589; loose typing only for registration.
+  const srv = server as any;
+
   // integrate-path-sale
-  server.prompt(
+  srv.registerPrompt(
     "integrate-path-sale",
-    "Guides the agent through inspecting the ISV's project, finding the checkout flow, installing the SDK, and wiring a Path Terminal SDK sale. Covers UX Steps 2 and 3.",
-    salePromptArgs,
-    ({ project_type }) => ({
+    {
+      description:
+        "Guides the agent through inspecting the ISV's project, finding the checkout flow, installing the SDK, and wiring a Path Terminal SDK sale. Covers UX Steps 2 and 3.",
+      argsSchema: salePromptArgs,
+    },
+    ({ project_type }: z.infer<typeof salePromptArgs>) => ({
       messages: [
         {
           role: "user",
@@ -105,10 +111,12 @@ export function registerPrompts(server: McpServer): void {
   );
 
   // integrate-path-refund
-  server.prompt(
+  server.registerPrompt(
     "integrate-path-refund",
-    "Guides the agent through finding the order history or transaction list and wiring a Path Terminal SDK refund flow. Covers UX Step 5.",
-    {},
+    {
+      description:
+        "Guides the agent through finding the order history or transaction list and wiring a Path Terminal SDK refund flow. Covers UX Step 5.",
+    },
     () => ({
       messages: [
         {
@@ -154,10 +162,12 @@ export function registerPrompts(server: McpServer): void {
   );
 
   // integrate-path-receipts
-  server.prompt(
+  server.registerPrompt(
     "integrate-path-receipts",
-    "Guides the agent through finding the receipt/confirmation screen and wiring Path receipt data retrieval after a successful sale. Covers UX Step 5.",
-    {},
+    {
+      description:
+        "Guides the agent through finding the receipt/confirmation screen and wiring Path receipt data retrieval after a successful sale. Covers UX Step 5.",
+    },
     () => ({
       messages: [
         {
@@ -203,11 +213,14 @@ export function registerPrompts(server: McpServer): void {
   );
 
   // full-path-integration
-  server.prompt(
+  srv.registerPrompt(
     "full-path-integration",
-    "End-to-end integration: install SDK, initialise, discover, wire sale, refund, receipts, and events. Covers all UX Steps 2-5.",
-    fullIntegrationArgs,
-    ({ project_type }) => ({
+    {
+      description:
+        "End-to-end integration: install SDK, initialise, discover, wire sale, refund, receipts, and events. Covers all UX Steps 2-5.",
+      argsSchema: fullIntegrationArgs,
+    },
+    ({ project_type }: z.infer<typeof fullIntegrationArgs>) => ({
       messages: [
         {
           role: "user",
@@ -273,11 +286,14 @@ export function registerPrompts(server: McpServer): void {
   );
 
   // diagnose-path-error
-  server.prompt(
+  srv.registerPrompt(
     "diagnose-path-error",
-    "Explains a Path error and provides specific recovery guidance. Covers UX Step 6.",
-    diagnoseArgs,
-    ({ error_code, context }) => ({
+    {
+      description:
+        "Explains a Path error and provides specific recovery guidance. Covers UX Step 6.",
+      argsSchema: diagnoseArgs,
+    },
+    ({ error_code, context }: z.infer<typeof diagnoseArgs>) => ({
       messages: [
         {
           role: "user",
@@ -308,10 +324,12 @@ export function registerPrompts(server: McpServer): void {
   );
 
   // setup-emulator
-  server.prompt(
+  server.registerPrompt(
     "setup-emulator",
-    "Guides the ISV through connecting the Path Pico W emulator via BLE and running a first test sale. Covers UX Step 4.",
-    {},
+    {
+      description:
+        "Guides the ISV through connecting the Path Pico W emulator via BLE and running a first test sale. Covers UX Step 4.",
+    },
     () => ({
       messages: [
         {

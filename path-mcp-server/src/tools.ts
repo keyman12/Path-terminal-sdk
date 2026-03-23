@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z, type ZodRawShape } from "zod";
+import { z } from "zod";
 import { EXAMPLES } from "./content/examples.js";
 import { ERROR_CODES } from "./content/errorCodes.js";
 
@@ -161,33 +161,38 @@ function detectCommonMistakes(code: string): string[] {
   return warnings;
 }
 
-// Pre-declare params objects to avoid "type instantiation too deep" errors
-// caused by Zod + MCP SDK generic inference chains.
-const getCodeExampleParams = {
+// z.object(...) (not raw shapes) keeps MCP SDK ToolCallback inference shallow (avoids TS2589).
+const getCodeExampleParams = z.object({
   operation: z.string().describe(
     "The operation to get an example for. Options: install, init, discover, sale, refund, receipt, events, capabilities."
   ),
-} satisfies ZodRawShape;
+});
 
-const explainErrorParams = {
+const explainErrorParams = z.object({
   error_code: z.string().describe(
     "A PathErrorCode value. Valid codes: validation, connectivity, capability, terminal_busy, timeout, user_cancelled, decline, terminal_fault, adapter_fault, protocol_mismatch, recovery_required, configuration_error, unsupported_operation"
   ),
-} satisfies ZodRawShape;
+});
 
-const validateIntegrationParams = {
+const validateIntegrationParams = z.object({
   code: z.string().describe(
     "The Swift code snippet to validate. Can be a partial file or the full integration code."
   ),
-} satisfies ZodRawShape;
+});
 
 export function registerTools(server: McpServer): void {
+  // Zod object schemas + MCP SDK generics hit TS2589; loose typing only for registration.
+  const srv = server as any;
+
   // get_code_example
-  server.tool(
+  srv.registerTool(
     "get_code_example",
-    "Returns a complete, correct, compilable Swift code example for a specific Path Terminal SDK operation. Always call this before writing any integration code — do not guess at API patterns.",
-    getCodeExampleParams,
-    async ({ operation }) => {
+    {
+      description:
+        "Returns a complete, correct, compilable Swift code example for a specific Path Terminal SDK operation. Always call this before writing any integration code — do not guess at API patterns.",
+      inputSchema: getCodeExampleParams,
+    },
+    async ({ operation }: z.infer<typeof getCodeExampleParams>) => {
       const code = EXAMPLES[operation];
       return {
         content: [
@@ -210,11 +215,14 @@ export function registerTools(server: McpServer): void {
   );
 
   // explain_error
-  server.tool(
+  srv.registerTool(
     "explain_error",
-    "Explains a PathErrorCode — what it means, common causes, whether it is recoverable, and the suggested fix. Call this whenever a PathError is encountered or when the developer reports an error.",
-    explainErrorParams,
-    async ({ error_code }) => {
+    {
+      description:
+        "Explains a PathErrorCode — what it means, common causes, whether it is recoverable, and the suggested fix. Call this whenever a PathError is encountered or when the developer reports an error.",
+      inputSchema: explainErrorParams,
+    },
+    async ({ error_code }: z.infer<typeof explainErrorParams>) => {
       // Normalise: accept both camelCase and snake_case
       const normalised = error_code
         .replace(/([A-Z])/g, "_$1")
@@ -257,11 +265,14 @@ export function registerTools(server: McpServer): void {
   );
 
   // validate_integration
-  server.tool(
+  srv.registerTool(
     "validate_integration",
-    "Checks a Swift code snippet for common Path Terminal SDK integration mistakes. Call this after writing integration code and before presenting it to the developer for review.",
-    validateIntegrationParams,
-    async ({ code }) => {
+    {
+      description:
+        "Checks a Swift code snippet for common Path Terminal SDK integration mistakes. Call this after writing integration code and before presenting it to the developer for review.",
+      inputSchema: validateIntegrationParams,
+    },
+    async ({ code }: z.infer<typeof validateIntegrationParams>) => {
       const warnings = detectCommonMistakes(code);
       const hasIssues = warnings.length > 1 || !warnings[0].startsWith("No obvious");
 
@@ -283,20 +294,24 @@ export function registerTools(server: McpServer): void {
   );
 
   // get_integration_checklist
-  server.tool(
+  server.registerTool(
     "get_integration_checklist",
-    "Returns the ordered checklist of all steps required for a complete Path Terminal SDK integration. Call this at the start of any integration session.",
-    {},
+    {
+      description:
+        "Returns the ordered checklist of all steps required for a complete Path Terminal SDK integration. Call this at the start of any integration session.",
+    },
     async () => ({
       content: [{ type: "text", text: INTEGRATION_CHECKLIST_TEXT }],
     })
   );
 
   // get_info_plist_requirements
-  server.tool(
+  server.registerTool(
     "get_info_plist_requirements",
-    "Returns the exact Info.plist XML keys and values required for Bluetooth (BLE) permission. Call this when checking or setting up BLE permissions, or when the developer asks what to add to Info.plist.",
-    {},
+    {
+      description:
+        "Returns the exact Info.plist XML keys and values required for Bluetooth (BLE) permission. Call this when checking or setting up BLE permissions, or when the developer asks what to add to Info.plist.",
+    },
     async () => ({
       content: [
         {

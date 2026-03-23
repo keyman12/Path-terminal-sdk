@@ -14,6 +14,7 @@
 - **BLEPathTerminalAdapter** — `centralManagerDidUpdateState` no longer treats transient states (`.unknown`, `.resetting`) as a full disconnect; only `.poweredOff` / `.unauthorized` / `.unsupported` tear down the link. Service/characteristic discovery failures now fail the pending connect with a clear error instead of hanging until timeout.
 
 ### Fixed
+- **path-mcp-server CI (`npm run typecheck`)** — `tsc` failed with TS2589 on `registerTool` / `registerPrompt` when using Zod object input schemas (MCP SDK `ShapeOutput` + Zod inference). Schema-bearing registrations use a narrow `as any` server handle; handlers stay typed with `z.infer`.
 - **BLEPathTerminalAdapter.connect(to:)** — reject a second concurrent connect (and resume the new attempt with an error) instead of overwriting `connectContinuation`, which caused **Swift TASK CONTINUATION MISUSE** and unstable links. Added cancelable 10s connect timeout via `DispatchWorkItem`. EPOS device list disables row taps while any connect is in progress.
 - **BLEPathTerminalAdapter.discoverDevices()** — if already connected, return the current peripheral **without** starting a new scan. Scanning while a GATT session is active was causing disconnects ~1s after connect when the EPOS “Manage Devices” screen re-ran `startScan()` / `discoverDevices()` after `isReady` flipped true.
 - **Connect-then-immediate-disconnect** on iOS when the Bluetooth stack briefly reported a non-`.poweredOn` state after a successful GATT setup.
