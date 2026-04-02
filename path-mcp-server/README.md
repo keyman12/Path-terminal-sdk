@@ -116,7 +116,7 @@ npx path-terminal-init --agent cursor  # Specify agent (default: cursor)
 | `integrate-path-receipts` | Wire receipt data retrieval after a sale |
 | `full-path-integration` | End-to-end: sale + refund + receipts + events |
 | `diagnose-path-error` | Diagnose and fix a PathError |
-| `setup-emulator` | Connect and test with the Path Pico W emulator |
+| `setup-emulator` | Connect and test with the Path POS Emulator |
 
 ---
 
@@ -136,9 +136,9 @@ Use the full-path-integration prompt to wire sale, refund, and receipts end to e
 
 ---
 
-## Testing with the Path Pico W Emulator
+## Testing with the Path POS Emulator
 
-1. Power on the Path Pico W emulator (it broadcasts BLE automatically)
+1. Power on the Path POS Emulator (it broadcasts BLE automatically)
 2. Run your app — it should discover and connect to the emulator
 3. Trigger a sale for 100 (= £1.00 GBP)
 4. Tap the NFC tag on the emulator when prompted

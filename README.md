@@ -11,7 +11,7 @@ Swift **PathTerminalSDK** package, documentation, JSON schemas, MCP server skele
 | **Documentation index** | [Docs/README.md](Docs/README.md) |
 | **Changelog** | [Docs/CHANGELOG.md](Docs/CHANGELOG.md) |
 | **iPad EPOS demo** (separate repo) | [Path-epos-demo-sdk](https://github.com/keyman12/Path-epos-demo-sdk) |
-| **Pico emulator firmware** (separate repo) | [PosEmulator](https://github.com/keyman12/PosEmulator) |
+| **POS Emulator firmware** (separate repo) | [PosEmulator](https://github.com/keyman12/PosEmulator) |
 
 ## Continuous integration (CI)
 

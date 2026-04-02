@@ -78,7 +78,7 @@ Use this as your guide through the integration journey. Check off each item befo
 
 ## Phase 6: Testing
 
-- [ ] **Emulator connected** — App discovers and connects to Path Pico W
+- [ ] **Emulator connected** — App discovers and connects to Path POS Emulator
 - [ ] **Test sale approved** — 100 minor units (£1.00) approved via NFC tap
 - [ ] **TransactionId received** — result.transactionId is non-nil
 - [ ] **Receipt retrieved** — getReceiptData returns populated fields

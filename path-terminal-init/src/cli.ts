@@ -13,6 +13,8 @@ const MCP_SERVER_URL = "https://mcp.path2ai.tech/sse";
 
 const RULES_SOURCE = path.join(__dirname, "../rules/path-integration.mdc");
 
+type AgentType = "cursor" | "claude";
+
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
 function ask(question: string): Promise<string> {
@@ -43,6 +45,23 @@ function hasSDKDependency(packageSwift: string): boolean {
   return content.includes("path-terminal-sdk") || content.includes("PathTerminalSDK");
 }
 
+function hasXcodeProjectSDKDependency(xcodeProject: string): boolean {
+  // Xcode stores resolved SPM packages in the workspace's Package.resolved
+  const resolvedPaths = [
+    path.join(xcodeProject, "project.xcworkspace", "xcshareddata", "swiftpm", "Package.resolved"),
+    path.join(xcodeProject, "xcshareddata", "swiftpm", "Package.resolved"),
+  ];
+  for (const p of resolvedPaths) {
+    if (fs.existsSync(p)) {
+      const content = fs.readFileSync(p, "utf-8");
+      if (content.includes("path-terminal-sdk") || content.includes("PathTerminalSDK")) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function injectSPMDependency(packageSwiftPath: string): boolean {
   let content = fs.readFileSync(packageSwiftPath, "utf-8");
 
@@ -61,7 +80,9 @@ function injectSPMDependency(packageSwiftPath: string): boolean {
   return true;
 }
 
-function writeMcpConfig(dir: string): { written: boolean; merged: boolean } {
+// ─── Cursor-specific config ──────────────────────────────────────────────────
+
+function writeCursorMcpConfig(dir: string): { written: boolean; merged: boolean } {
   const cursorDir = path.join(dir, ".cursor");
   const configPath = path.join(cursorDir, "mcp.json");
 
@@ -92,7 +113,7 @@ function writeMcpConfig(dir: string): { written: boolean; merged: boolean } {
   return { written: true, merged: false };
 }
 
-function writeRulesFile(dir: string): { written: boolean; skipped: boolean } {
+function writeCursorRulesFile(dir: string): { written: boolean; skipped: boolean } {
   const rulesDir = path.join(dir, ".cursor", "rules");
   const destPath = path.join(rulesDir, "path-integration.mdc");
 
@@ -109,6 +130,75 @@ function writeRulesFile(dir: string): { written: boolean; skipped: boolean } {
   fs.copyFileSync(RULES_SOURCE, destPath);
   return { written: true, skipped: false };
 }
+
+// ─── Claude Code-specific config ─────────────────────────────────────────────
+
+function writeClaudeMcpConfig(dir: string): { written: boolean; merged: boolean } {
+  // Claude Code reads .mcp.json at the project root (same mcpServers format as Cursor)
+  const configPath = path.join(dir, ".mcp.json");
+
+  const serverEntry = {
+    type: "sse",
+    url: MCP_SERVER_URL,
+  };
+
+  if (fs.existsSync(configPath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      if (!existing.mcpServers) existing.mcpServers = {};
+      if (existing.mcpServers["path-terminal"]) {
+        return { written: false, merged: false }; // already present
+      }
+      existing.mcpServers["path-terminal"] = serverEntry;
+      fs.writeFileSync(configPath, JSON.stringify(existing, null, 2), "utf-8");
+      return { written: true, merged: true };
+    } catch {
+      return { written: false, merged: false };
+    }
+  }
+
+  const config = {
+    mcpServers: {
+      "path-terminal": serverEntry,
+    },
+  };
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+  return { written: true, merged: false };
+}
+
+function writeClaudeRulesFile(dir: string): { written: boolean; skipped: boolean } {
+  const destPath = path.join(dir, "CLAUDE.md");
+
+  // Don't overwrite an existing CLAUDE.md — it may have custom instructions
+  if (fs.existsSync(destPath)) {
+    const content = fs.readFileSync(destPath, "utf-8");
+    if (content.includes("Path Terminal SDK")) {
+      return { written: false, skipped: true };
+    }
+    // Append to existing CLAUDE.md
+    const rules = loadRulesContent();
+    if (!rules) return { written: false, skipped: false };
+    fs.appendFileSync(destPath, "\n\n" + rules, "utf-8");
+    return { written: true, skipped: false };
+  }
+
+  const rules = loadRulesContent();
+  if (!rules) return { written: false, skipped: false };
+  fs.writeFileSync(destPath, rules, "utf-8");
+  return { written: true, skipped: false };
+}
+
+function loadRulesContent(): string | null {
+  if (!fs.existsSync(RULES_SOURCE)) return null;
+
+  const raw = fs.readFileSync(RULES_SOURCE, "utf-8");
+
+  // Strip the YAML frontmatter (--- ... ---) that Cursor uses
+  const stripped = raw.replace(/^---[\s\S]*?---\s*/, "");
+  return stripped.trim();
+}
+
+// ─── Shared ──────────────────────────────────────────────────────────────────
 
 function checkInfoPlist(dir: string): string[] {
   const issues: string[] = [];
@@ -140,7 +230,7 @@ function checkInfoPlist(dir: string): string[] {
 
 // ─── Summary helpers ─────────────────────────────────────────────────────────
 
-function printSummary(actions: string[], warnings: string[], manualSteps: string[]) {
+function printSummary(agent: AgentType, actions: string[], warnings: string[], manualSteps: string[]) {
   console.log("\n" + chalk.bold("─────────────────────────────────────────"));
   console.log(chalk.bold("  Path Terminal SDK — Setup Complete"));
   console.log(chalk.bold("─────────────────────────────────────────\n"));
@@ -163,12 +253,28 @@ function printSummary(actions: string[], warnings: string[], manualSteps: string
     console.log();
   }
 
-  console.log(chalk.bold("🚀 Your first prompt in Cursor:"));
-  console.log(
-    chalk.cyan(
-      '  "Use the Path MCP tools to integrate a sale flow into this app."'
-    )
-  );
+  if (agent === "claude") {
+    console.log(chalk.bold("🚀 Start Claude Code in this directory:"));
+    console.log(chalk.cyan("  claude --model sonnet"));
+    console.log();
+    console.log(chalk.bold("  Then paste this prompt:"));
+    console.log(
+      chalk.cyan(
+        '  "Integrate the Path Terminal SDK into this EPOS app. Read CLAUDE.md\n' +
+        '   for the integration rules, then use the Path MCP tools to add a\n' +
+        '   Path POS Adapter in Settings — allowing the developer to scan for\n' +
+        '   and connect to the Path POS Emulator from within the app."'
+      )
+    );
+  } else {
+    console.log(chalk.bold("🚀 Your first prompt in Cursor:"));
+    console.log(
+      chalk.cyan(
+        '  "Use the Path MCP tools to integrate a sale flow into this app."'
+      )
+    );
+  }
+
   console.log();
   console.log(chalk.dim(`  MCP server: ${MCP_SERVER_URL}`));
   console.log(chalk.dim("  Docs:       https://mcp.path2ai.tech/health"));
@@ -181,29 +287,31 @@ program
   .name("path-terminal-init")
   .description(
     "Set up the Path Terminal SDK integration assistant for your iOS project.\n" +
-      "Configures MCP server access in Cursor, drops the integration rules file,\n" +
-      "and optionally adds the SDK as an SPM dependency."
+      "Configures MCP server access, drops the integration rules file,\n" +
+      "and optionally adds the SDK as an SPM dependency.\n\n" +
+      "Supported agents: cursor (default), claude"
   )
   .version("0.1.0")
   .option("--tools-only", "Only configure MCP + rules. Skip SDK installation and Xcode project setup.")
-  .option("--agent <name>", "AI agent to configure (default: cursor). Currently only 'cursor' is supported.", "cursor")
+  .option("--agent <name>", "AI agent to configure: 'cursor' (default) or 'claude'.", "cursor")
   .action(async (options) => {
     const toolsOnly: boolean = options.toolsOnly ?? false;
-    const agent: string = options.agent ?? "cursor";
+    const agent: AgentType = (options.agent ?? "cursor") as AgentType;
     const cwd = process.cwd();
 
     console.log();
     console.log(chalk.bold("  Path Terminal SDK — Integration Assistant Setup"));
     console.log(chalk.dim("  ─────────────────────────────────────────────────"));
+    console.log(chalk.dim(`  Agent: ${agent}`));
     console.log();
 
-    if (agent !== "cursor") {
+    if (agent !== "cursor" && agent !== "claude") {
       console.log(
         chalk.yellow(
-          `⚠ Agent '${agent}' is not yet supported. Currently only 'cursor' is configured.`
+          `⚠ Agent '${agent}' is not supported. Use 'cursor' or 'claude'.`
         )
       );
-      console.log(chalk.dim("  More agents coming soon.\n"));
+      process.exit(1);
     }
 
     const actions: string[] = [];
@@ -228,7 +336,7 @@ program
             spinner.succeed("PathTerminalSDK added to Package.swift.");
             actions.push("PathTerminalSDK added to Package.swift");
             manualSteps.push(
-              `Open Xcode and select the PathTerminalSDK and PathEmulatorAdapter targets when prompted.`
+              `Open Xcode and link all three targets to your app: PathTerminalSDK, PathEmulatorAdapter, PathCoreModels.`
             );
           } else {
             spinner.warn("Could not automatically modify Package.swift — manual step required.");
@@ -240,28 +348,37 @@ program
         }
       } else if (xcodeProject) {
         spinner.succeed(`Found Xcode project: ${path.basename(xcodeProject)}`);
-        console.log(
-          chalk.yellow(
-            "\n  ⚠ Automatic SPM injection into .xcodeproj is not supported (Xcode manages this)."
-          )
-        );
-        console.log(chalk.bold("\n  To add PathTerminalSDK in Xcode:"));
-        console.log("  1. Open your project in Xcode");
-        console.log("  2. File → Add Package Dependencies…");
-        console.log(`  3. Enter URL: ${chalk.cyan(SDK_GITHUB_URL)}`);
-        console.log(
-          "  4. Select both PathTerminalSDK and PathEmulatorAdapter targets"
-        );
-        console.log("  5. Click Add Package\n");
-        const confirmed = await ask(
-          chalk.bold("  Press Enter once you have added the package, or type 'skip' to do this later: ")
-        );
-        if (confirmed.toLowerCase() !== "skip") {
-          actions.push(`PathTerminalSDK added to Xcode project (confirmed by user)`);
+        if (hasXcodeProjectSDKDependency(xcodeProject)) {
+          spinner.succeed("PathTerminalSDK already present in Xcode project.");
+          actions.push("PathTerminalSDK dependency already present — no change needed.");
         } else {
-          manualSteps.push(
-            `Add PathTerminalSDK via Xcode: File → Add Package Dependencies → ${SDK_GITHUB_URL}`
+          console.log(
+            chalk.yellow(
+              "\n  ⚠ Automatic SPM injection into .xcodeproj is not supported (Xcode manages this)."
+            )
           );
+          console.log(chalk.bold("\n  To add PathTerminalSDK in Xcode:"));
+          console.log("  1. Open your project in Xcode");
+          console.log("  2. File → Add Package Dependencies…");
+          console.log(`  3. Enter URL: ${chalk.cyan(SDK_GITHUB_URL)}`);
+          console.log(
+            "  4. In the 'Choose Package Products' dialog, set all three to your app target:"
+          );
+          console.log(chalk.cyan("       PathTerminalSDK    → your app target"));
+          console.log(chalk.cyan("       PathEmulatorAdapter → your app target"));
+          console.log(chalk.cyan("       PathCoreModels      → your app target"));
+          console.log(chalk.dim("     (PathDiagnostics can be left as None)"));
+          console.log("  5. Click Add Package\n");
+          const confirmed = await ask(
+            chalk.bold("  Press Enter once you have added the package, or type 'skip' to do this later: ")
+          );
+          if (confirmed.toLowerCase() !== "skip") {
+            actions.push(`PathTerminalSDK added to Xcode project (confirmed by user)`);
+          } else {
+            manualSteps.push(
+              `Add PathTerminalSDK via Xcode: File → Add Package Dependencies → ${SDK_GITHUB_URL}`
+            );
+          }
         }
       } else {
         spinner.warn("No Xcode project found in current directory.");
@@ -285,13 +402,24 @@ program
     // ── 2. MCP config ─────────────────────────────────────────────────────────
     {
       const spinner = ora("Writing MCP server config…").start();
-      const { written, merged } = writeMcpConfig(cwd);
-      if (written && merged) {
-        spinner.succeed("MCP config merged into existing .cursor/mcp.json.");
-        actions.push("path-terminal entry merged into .cursor/mcp.json");
-      } else if (written) {
-        spinner.succeed("MCP config written to .cursor/mcp.json.");
-        actions.push("MCP server configured: .cursor/mcp.json");
+
+      let result: { written: boolean; merged: boolean };
+      let configFile: string;
+
+      if (agent === "claude") {
+        result = writeClaudeMcpConfig(cwd);
+        configFile = ".mcp.json";
+      } else {
+        result = writeCursorMcpConfig(cwd);
+        configFile = ".cursor/mcp.json";
+      }
+
+      if (result.written && result.merged) {
+        spinner.succeed(`MCP config merged into existing ${configFile}.`);
+        actions.push(`path-terminal entry merged into ${configFile}`);
+      } else if (result.written) {
+        spinner.succeed(`MCP config written to ${configFile}.`);
+        actions.push(`MCP server configured: ${configFile}`);
       } else {
         spinner.info("MCP config already present — no change needed.");
         actions.push("MCP config already present — no change needed.");
@@ -300,17 +428,28 @@ program
 
     // ── 3. Rules file ─────────────────────────────────────────────────────────
     {
-      const spinner = ora("Writing Cursor rules file…").start();
-      const { written, skipped } = writeRulesFile(cwd);
-      if (written) {
-        spinner.succeed("Rules file written to .cursor/rules/path-integration.mdc.");
-        actions.push("Integration rules file: .cursor/rules/path-integration.mdc");
-      } else if (skipped) {
+      const spinner = ora(`Writing ${agent === "claude" ? "CLAUDE.md" : "Cursor rules"} file…`).start();
+
+      let result: { written: boolean; skipped: boolean };
+      let rulesFile: string;
+
+      if (agent === "claude") {
+        result = writeClaudeRulesFile(cwd);
+        rulesFile = "CLAUDE.md";
+      } else {
+        result = writeCursorRulesFile(cwd);
+        rulesFile = ".cursor/rules/path-integration.mdc";
+      }
+
+      if (result.written) {
+        spinner.succeed(`Rules file written to ${rulesFile}.`);
+        actions.push(`Integration rules file: ${rulesFile}`);
+      } else if (result.skipped) {
         spinner.info(
-          "Rules file already exists — skipped to preserve your customisations."
+          `${rulesFile} already exists — skipped to preserve your customisations.`
         );
         warnings.push(
-          ".cursor/rules/path-integration.mdc already exists — not overwritten."
+          `${rulesFile} already exists — not overwritten.`
         );
       } else {
         spinner.warn("Could not write rules file — source not found in npm package.");
@@ -344,7 +483,7 @@ program
     }
 
     // ── 5. Summary ────────────────────────────────────────────────────────────
-    printSummary(actions, warnings, manualSteps);
+    printSummary(agent, actions, warnings, manualSteps);
   });
 
 program.parse(process.argv);

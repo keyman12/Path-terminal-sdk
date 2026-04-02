@@ -20,7 +20,7 @@ final class TerminalManager: ObservableObject {
     let terminal: PathTerminal
 
     init() {
-        // BLEPathTerminalAdapter connects to the Path Pico W emulator over Bluetooth.
+        // BLEPathTerminalAdapter connects to the Path POS Emulator over Bluetooth.
         // Additional adapters (WiFi, USB) will be available in future releases.
         // Swapping adapters requires only changing this one line.
         let adapter = BLEPathTerminalAdapter(

@@ -50,7 +50,7 @@ const INTEGRATION_CHECKLIST_TEXT = `# Path Terminal SDK Integration Checklist
 20. Display both merchantReceipt and customerReceipt fields
 
 ## Step 6: Test with emulator
-21. Power on Path Pico W emulator
+21. Power on Path POS Emulator
 22. Run app — verify BLE discovery and connection
 23. Process test sale (100 = £1.00 GBP)
 24. Tap NFC tag on emulator when prompted

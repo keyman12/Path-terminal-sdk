@@ -328,7 +328,7 @@ export function registerPrompts(server: McpServer): void {
     "setup-emulator",
     {
       description:
-        "Guides the ISV through connecting the Path Pico W emulator via BLE and running a first test sale. Covers UX Step 4.",
+        "Guides the ISV through connecting the Path POS Emulator via BLE and running a first test sale. Covers UX Step 4.",
     },
     () => ({
       messages: [
@@ -337,7 +337,7 @@ export function registerPrompts(server: McpServer): void {
           content: {
             type: "text",
             text: [
-              "Guide me through connecting the Path Pico W emulator and running a first test sale.",
+              "Guide me through connecting the Path POS Emulator and running a first test sale.",
               "",
               "## Your task",
               "",
@@ -352,7 +352,7 @@ export function registerPrompts(server: McpServer): void {
               "",
               "### Step 3: Emulator hardware setup",
               "Explain the following to the developer:",
-              "  - Power on the Path Pico W emulator (USB-C or battery)",
+              "  - Power on the Path POS Emulator (USB-C or battery)",
               "  - The emulator broadcasts a BLE service when powered on",
               "  - It should appear as 'PathEPOSEmulator' or similar in BLE scans",
               "  - Ensure the emulator is within 2-3 metres of the iPhone/iPad",
@@ -375,7 +375,7 @@ export function registerPrompts(server: McpServer): void {
               "  2. Enter a test amount — suggest 100 (= £1.00 GBP)",
               "  3. Trigger the sale",
               "  4. When the terminal state shows pendingDevice, present the NFC tag on the emulator",
-              "     (tap the NFC sticker/antenna on the Pico W board)",
+              "     (tap the NFC sticker/antenna on the Path POS Emulator)",
               "  5. The emulator simulates card presentation and approval",
               "",
               "### Step 6: Verify results",
@@ -386,7 +386,7 @@ export function registerPrompts(server: McpServer): void {
               "",
               "### Step 7: Connection type note",
               "Add this note for context:",
-              "'The Path Pico W emulator currently connects via Bluetooth (BLE). WiFi and USB",
+              "'The Path POS Emulator currently connects via Bluetooth (BLE). WiFi and USB",
               "connection methods are planned for future releases. The same integration code",
               "works with all connection types — only the adapter changes.'",
             ].join("\n"),

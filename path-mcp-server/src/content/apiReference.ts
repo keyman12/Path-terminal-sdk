@@ -28,7 +28,7 @@ The main entry point for the Path Terminal SDK. Wraps a \`PathTerminalAdapter\` 
 \`\`\`swift
 public init(adapter: PathTerminalAdapter)
 \`\`\`
-Initialise with any \`PathTerminalAdapter\` conformance. Use \`BLEPathTerminalAdapter\` for the Pico W emulator or real BLE hardware. Use \`MockPathTerminalAdapter\` for unit testing.
+Initialise with any \`PathTerminalAdapter\` conformance. Use \`BLEPathTerminalAdapter\` for the Path POS Emulator or real BLE hardware. Use \`MockPathTerminalAdapter\` for unit testing.
 
 #### \`discoverDevices()\`
 \`\`\`swift
@@ -108,7 +108,7 @@ public protocol PathTerminalAdapter: AnyObject, Sendable
 The protocol that all adapters implement. Swap adapters by passing a different conformance to \`PathTerminal.init(adapter:)\`. No other code changes required.
 
 **Available adapters:**
-- \`BLEPathTerminalAdapter\` — connects to Path Pico W emulator or BLE terminal (current)
+- \`BLEPathTerminalAdapter\` — connects to Path POS Emulator or BLE terminal (current)
 - \`MockPathTerminalAdapter\` — in-memory mock for unit testing
 - WiFi and USB adapters — planned for future releases
 
