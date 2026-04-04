@@ -8,12 +8,15 @@ import * as readline from "readline";
 import ora from "ora";
 
 const SDK_GITHUB_URL = "https://github.com/keyman12/path-terminal-sdk";
+const ANDROID_SDK_GITHUB_URL = "https://github.com/keyman12/path-terminal-sdk-android";
 const SDK_VERSION = "0.1.0"; // minimum version to reference
 const MCP_SERVER_URL = "https://mcp.path2ai.tech/sse";
 
 const RULES_SOURCE = path.join(__dirname, "../rules/path-integration.mdc");
+const ANDROID_RULES_SOURCE = path.join(__dirname, "../rules/path-integration-android.mdc");
 
 type AgentType = "cursor" | "claude";
+type Platform = "ios" | "android";
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
@@ -113,9 +116,9 @@ function writeCursorMcpConfig(dir: string): { written: boolean; merged: boolean 
   return { written: true, merged: false };
 }
 
-function writeCursorRulesFile(dir: string): { written: boolean; skipped: boolean } {
+function writeCursorRulesFile(dir: string, rulesSource: string = RULES_SOURCE, filename: string = "path-integration.mdc"): { written: boolean; skipped: boolean } {
   const rulesDir = path.join(dir, ".cursor", "rules");
-  const destPath = path.join(rulesDir, "path-integration.mdc");
+  const destPath = path.join(rulesDir, filename);
 
   fs.mkdirSync(rulesDir, { recursive: true });
 
@@ -123,11 +126,11 @@ function writeCursorRulesFile(dir: string): { written: boolean; skipped: boolean
     return { written: false, skipped: true };
   }
 
-  if (!fs.existsSync(RULES_SOURCE)) {
+  if (!fs.existsSync(rulesSource)) {
     return { written: false, skipped: false };
   }
 
-  fs.copyFileSync(RULES_SOURCE, destPath);
+  fs.copyFileSync(rulesSource, destPath);
   return { written: true, skipped: false };
 }
 
@@ -166,7 +169,7 @@ function writeClaudeMcpConfig(dir: string): { written: boolean; merged: boolean 
   return { written: true, merged: false };
 }
 
-function writeClaudeRulesFile(dir: string): { written: boolean; skipped: boolean } {
+function writeClaudeRulesFile(dir: string, rulesSource: string = RULES_SOURCE): { written: boolean; skipped: boolean } {
   const destPath = path.join(dir, "CLAUDE.md");
 
   // Don't overwrite an existing CLAUDE.md — it may have custom instructions
@@ -176,22 +179,22 @@ function writeClaudeRulesFile(dir: string): { written: boolean; skipped: boolean
       return { written: false, skipped: true };
     }
     // Append to existing CLAUDE.md
-    const rules = loadRulesContent();
+    const rules = loadRulesContent(rulesSource);
     if (!rules) return { written: false, skipped: false };
     fs.appendFileSync(destPath, "\n\n" + rules, "utf-8");
     return { written: true, skipped: false };
   }
 
-  const rules = loadRulesContent();
+  const rules = loadRulesContent(rulesSource);
   if (!rules) return { written: false, skipped: false };
   fs.writeFileSync(destPath, rules, "utf-8");
   return { written: true, skipped: false };
 }
 
-function loadRulesContent(): string | null {
-  if (!fs.existsSync(RULES_SOURCE)) return null;
+function loadRulesContent(rulesSource: string = RULES_SOURCE): string | null {
+  if (!fs.existsSync(rulesSource)) return null;
 
-  const raw = fs.readFileSync(RULES_SOURCE, "utf-8");
+  const raw = fs.readFileSync(rulesSource, "utf-8");
 
   // Strip the YAML frontmatter (--- ... ---) that Cursor uses
   const stripped = raw.replace(/^---[\s\S]*?---\s*/, "");
@@ -228,11 +231,82 @@ function checkInfoPlist(dir: string): string[] {
   return issues;
 }
 
+// ─── Android helpers ──────────────────────────────────────────────────────────
+
+function findAndroidProject(dir: string): boolean {
+  return fs.existsSync(path.join(dir, "settings.gradle.kts")) &&
+         fs.existsSync(path.join(dir, "app", "build.gradle.kts"));
+}
+
+function hasAndroidSDKDependency(dir: string): boolean {
+  const settingsPath = path.join(dir, "settings.gradle.kts");
+  if (!fs.existsSync(settingsPath)) return false;
+  const content = fs.readFileSync(settingsPath, "utf-8");
+  return content.includes("path-terminal-sdk-android") || content.includes("path-terminal-sdk");
+}
+
+function injectGradleCompositeB(dir: string): boolean {
+  const settingsPath = path.join(dir, "settings.gradle.kts");
+  if (!fs.existsSync(settingsPath)) return false;
+  let content = fs.readFileSync(settingsPath, "utf-8");
+  if (hasAndroidSDKDependency(dir)) return false; // already present
+
+  const compositeBlock = `
+// Include Path SDK modules via composite build
+includeBuild("../path-terminal-sdk-android") {
+    dependencySubstitution {
+        substitute(module("tech.path2ai.sdk:path-core-models")).using(project(":path-core-models"))
+        substitute(module("tech.path2ai.sdk:path-terminal-sdk")).using(project(":path-terminal-sdk"))
+        substitute(module("tech.path2ai.sdk:path-emulator-adapter")).using(project(":path-emulator-adapter"))
+        substitute(module("tech.path2ai.sdk:path-mock-adapter")).using(project(":path-mock-adapter"))
+        substitute(module("tech.path2ai.sdk:path-diagnostics")).using(project(":path-diagnostics"))
+    }
+}
+`;
+  content += compositeBlock;
+  fs.writeFileSync(settingsPath, content, "utf-8");
+  return true;
+}
+
+function injectGradleDependencies(dir: string): boolean {
+  const buildPath = path.join(dir, "app", "build.gradle.kts");
+  if (!fs.existsSync(buildPath)) return false;
+  let content = fs.readFileSync(buildPath, "utf-8");
+  if (content.includes("path-terminal-sdk")) return false; // already present
+
+  const deps = `    implementation("tech.path2ai.sdk:path-terminal-sdk:0.1.0")\n    implementation("tech.path2ai.sdk:path-emulator-adapter:0.1.0")\n`;
+  const depsRegex = /(dependencies\s*\{)/;
+  if (!depsRegex.test(content)) return false;
+  content = content.replace(depsRegex, `$1\n${deps}`);
+  fs.writeFileSync(buildPath, content, "utf-8");
+  return true;
+}
+
+function checkAndroidManifest(dir: string): string[] {
+  const issues: string[] = [];
+  function findManifests(d: string, depth: number = 0) {
+    if (depth > 4) return;
+    for (const e of fs.readdirSync(d)) {
+      if (e.startsWith(".") || e === "build") continue;
+      const full = path.join(d, e);
+      const stat = fs.statSync(full);
+      if (stat.isDirectory()) findManifests(full, depth + 1);
+      else if (e === "AndroidManifest.xml") {
+        const content = fs.readFileSync(full, "utf-8");
+        if (!content.includes("BLUETOOTH_SCAN")) issues.push(full);
+      }
+    }
+  }
+  findManifests(dir);
+  return issues;
+}
+
 // ─── Summary helpers ─────────────────────────────────────────────────────────
 
-function printSummary(agent: AgentType, actions: string[], warnings: string[], manualSteps: string[]) {
+function printSummary(agent: AgentType, platform: Platform, actions: string[], warnings: string[], manualSteps: string[]) {
+  const isAndroid = platform === "android";
   console.log("\n" + chalk.bold("─────────────────────────────────────────"));
-  console.log(chalk.bold("  Path Terminal SDK — Setup Complete"));
+  console.log(chalk.bold(`  Path Terminal SDK — Setup Complete (${isAndroid ? "Android" : "iOS"})`));
   console.log(chalk.bold("─────────────────────────────────────────\n"));
 
   if (actions.length > 0) {
@@ -258,19 +332,32 @@ function printSummary(agent: AgentType, actions: string[], warnings: string[], m
     console.log(chalk.cyan("  claude --model sonnet"));
     console.log();
     console.log(chalk.bold("  Then paste this prompt:"));
-    console.log(
-      chalk.cyan(
-        '  "Integrate the Path Terminal SDK into this EPOS app. Read CLAUDE.md\n' +
-        '   for the integration rules, then use the Path MCP tools to add a\n' +
-        '   Path POS Adapter in Settings — allowing the developer to scan for\n' +
-        '   and connect to the Path POS Emulator from within the app."'
-      )
-    );
+    if (isAndroid) {
+      console.log(
+        chalk.cyan(
+          '  "Integrate the Path Terminal SDK into this Android EPOS app. Read CLAUDE.md\n' +
+          '   for the integration rules, then use the Path MCP integrate-path-android\n' +
+          '   prompt to add a Path POS Adapter — allowing the developer to scan for\n' +
+          '   and connect to the Path POS Emulator from within the app."'
+        )
+      );
+    } else {
+      console.log(
+        chalk.cyan(
+          '  "Integrate the Path Terminal SDK into this EPOS app. Read CLAUDE.md\n' +
+          '   for the integration rules, then use the Path MCP tools to add a\n' +
+          '   Path POS Adapter in Settings — allowing the developer to scan for\n' +
+          '   and connect to the Path POS Emulator from within the app."'
+        )
+      );
+    }
   } else {
     console.log(chalk.bold("🚀 Your first prompt in Cursor:"));
     console.log(
       chalk.cyan(
-        '  "Use the Path MCP tools to integrate a sale flow into this app."'
+        isAndroid
+          ? '  "Use the Path MCP integrate-path-android prompt to integrate the SDK into this app."'
+          : '  "Use the Path MCP tools to integrate a sale flow into this app."'
       )
     );
   }
@@ -286,23 +373,37 @@ function printSummary(agent: AgentType, actions: string[], warnings: string[], m
 program
   .name("path-terminal-init")
   .description(
-    "Set up the Path Terminal SDK integration assistant for your iOS project.\n" +
+    "Set up the Path Terminal SDK integration assistant for your iOS or Android project.\n" +
+      "Auto-detects platform (iOS or Android) from the current directory.\n" +
       "Configures MCP server access, drops the integration rules file,\n" +
-      "and optionally adds the SDK as an SPM dependency.\n\n" +
-      "Supported agents: cursor (default), claude"
+      "and optionally adds the SDK dependency.\n\n" +
+      "Supported agents: cursor (default), claude\n" +
+      "Supported platforms: ios (default, auto-detected), android"
   )
   .version("0.1.0")
-  .option("--tools-only", "Only configure MCP + rules. Skip SDK installation and Xcode project setup.")
+  .option("--tools-only", "Only configure MCP + rules. Skip SDK installation.")
   .option("--agent <name>", "AI agent to configure: 'cursor' (default) or 'claude'.", "cursor")
+  .option("--platform <name>", "Platform: 'ios' or 'android'. Auto-detected if not specified.")
   .action(async (options) => {
     const toolsOnly: boolean = options.toolsOnly ?? false;
     const agent: AgentType = (options.agent ?? "cursor") as AgentType;
     const cwd = process.cwd();
 
+    // Auto-detect platform
+    const rawPlatform: string = options.platform ?? "auto";
+    let platform: Platform;
+    if (rawPlatform === "auto" || !["ios", "android"].includes(rawPlatform)) {
+      platform = findAndroidProject(cwd) ? "android" : "ios";
+    } else {
+      platform = rawPlatform as Platform;
+    }
+    const isAndroid = platform === "android";
+
     console.log();
     console.log(chalk.bold("  Path Terminal SDK — Integration Assistant Setup"));
     console.log(chalk.dim("  ─────────────────────────────────────────────────"));
-    console.log(chalk.dim(`  Agent: ${agent}`));
+    console.log(chalk.dim(`  Agent:    ${agent}`));
+    console.log(chalk.dim(`  Platform: ${platform}${options.platform ? "" : " (auto-detected)"}`));
     console.log();
 
     if (agent !== "cursor" && agent !== "claude") {
@@ -320,80 +421,129 @@ program
 
     // ── 1. SDK installation ───────────────────────────────────────────────────
     if (!toolsOnly) {
-      const spinner = ora("Checking for Xcode project…").start();
+      if (isAndroid) {
+        // ── Android: Gradle composite build ──
+        const spinner = ora("Checking Android project…").start();
 
-      const xcodeProject = findXcodeProject(cwd);
-      const packageSwift = findPackageSwift(cwd);
-
-      if (packageSwift) {
-        spinner.text = "Found Package.swift — adding PathTerminalSDK dependency…";
-        if (hasSDKDependency(packageSwift)) {
-          spinner.succeed("PathTerminalSDK already present in Package.swift.");
-          actions.push("PathTerminalSDK dependency already present — no change needed.");
+        if (!findAndroidProject(cwd)) {
+          spinner.warn("No Android project found (settings.gradle.kts or app/build.gradle.kts missing).");
+          const answer = await ask(
+            chalk.yellow("  Continue with tools-only setup? (y/n): ")
+          );
+          if (answer.toLowerCase() !== "y") {
+            console.log(chalk.dim("\n  Run this from your Android project root directory.\n"));
+            process.exit(0);
+          }
+          warnings.push("Ran in tools-only mode — no Android project found.");
+        } else if (hasAndroidSDKDependency(cwd)) {
+          spinner.succeed("Path Terminal SDK already present in settings.gradle.kts.");
+          actions.push("SDK dependency already present — no change needed.");
         } else {
-          const injected = injectSPMDependency(packageSwift);
-          if (injected) {
-            spinner.succeed("PathTerminalSDK added to Package.swift.");
-            actions.push("PathTerminalSDK added to Package.swift");
-            manualSteps.push(
-              `Open Xcode and link all three targets to your app: PathTerminalSDK, PathEmulatorAdapter, PathCoreModels.`
-            );
+          spinner.text = "Adding SDK composite build to settings.gradle.kts…";
+          const settingsOk = injectGradleCompositeB(cwd);
+          const depsOk = injectGradleDependencies(cwd);
+
+          if (settingsOk) {
+            spinner.succeed("Added SDK includeBuild to settings.gradle.kts.");
+            actions.push("SDK composite build added to settings.gradle.kts");
+          }
+          if (depsOk) {
+            actions.push("path-terminal-sdk + path-emulator-adapter added to app/build.gradle.kts");
           } else {
-            spinner.warn("Could not automatically modify Package.swift — manual step required.");
+            spinner.warn("Could not auto-inject dependencies into app/build.gradle.kts.");
             manualSteps.push(
-              `Add PathTerminalSDK manually to Package.swift:\n` +
-                `     .package(url: "${SDK_GITHUB_URL}", from: "${SDK_VERSION}")`
+              `Add to app/build.gradle.kts dependencies {}:\n` +
+              `     implementation("tech.path2ai.sdk:path-terminal-sdk:${SDK_VERSION}")\n` +
+              `     implementation("tech.path2ai.sdk:path-emulator-adapter:${SDK_VERSION}")`
             );
           }
-        }
-      } else if (xcodeProject) {
-        spinner.succeed(`Found Xcode project: ${path.basename(xcodeProject)}`);
-        if (hasXcodeProjectSDKDependency(xcodeProject)) {
-          spinner.succeed("PathTerminalSDK already present in Xcode project.");
-          actions.push("PathTerminalSDK dependency already present — no change needed.");
-        } else {
-          console.log(
-            chalk.yellow(
-              "\n  ⚠ Automatic SPM injection into .xcodeproj is not supported (Xcode manages this)."
-            )
-          );
-          console.log(chalk.bold("\n  To add PathTerminalSDK in Xcode:"));
-          console.log("  1. Open your project in Xcode");
-          console.log("  2. File → Add Package Dependencies…");
-          console.log(`  3. Enter URL: ${chalk.cyan(SDK_GITHUB_URL)}`);
-          console.log(
-            "  4. In the 'Choose Package Products' dialog, set all three to your app target:"
-          );
-          console.log(chalk.cyan("       PathTerminalSDK    → your app target"));
-          console.log(chalk.cyan("       PathEmulatorAdapter → your app target"));
-          console.log(chalk.cyan("       PathCoreModels      → your app target"));
-          console.log(chalk.dim("     (PathDiagnostics can be left as None)"));
-          console.log("  5. Click Add Package\n");
-          const confirmed = await ask(
-            chalk.bold("  Press Enter once you have added the package, or type 'skip' to do this later: ")
-          );
-          if (confirmed.toLowerCase() !== "skip") {
-            actions.push(`PathTerminalSDK added to Xcode project (confirmed by user)`);
-          } else {
+
+          // Remind about sibling SDK repo
+          const sdkSiblingPath = path.join(cwd, "..", "path-terminal-sdk-android");
+          if (!fs.existsSync(sdkSiblingPath)) {
             manualSteps.push(
-              `Add PathTerminalSDK via Xcode: File → Add Package Dependencies → ${SDK_GITHUB_URL}`
+              `Clone path-terminal-sdk-android as a sibling directory:\n` +
+              `     cd .. && git clone ${ANDROID_SDK_GITHUB_URL}`
             );
           }
         }
       } else {
-        spinner.warn("No Xcode project found in current directory.");
-        const answer = await ask(
-          chalk.yellow(
-            "  No .xcodeproj or Package.swift found. Continue with tools-only setup? (y/n): "
-          )
-        );
-        if (answer.toLowerCase() !== "y") {
-          console.log(
-            chalk.dim("\n  Run this command from your Xcode project directory, or use --tools-only.\n")
+        // ── iOS: SPM / Xcode ──
+        const spinner = ora("Checking for Xcode project…").start();
+
+        const xcodeProject = findXcodeProject(cwd);
+        const packageSwift = findPackageSwift(cwd);
+
+        if (packageSwift) {
+          spinner.text = "Found Package.swift — adding PathTerminalSDK dependency…";
+          if (hasSDKDependency(packageSwift)) {
+            spinner.succeed("PathTerminalSDK already present in Package.swift.");
+            actions.push("PathTerminalSDK dependency already present — no change needed.");
+          } else {
+            const injected = injectSPMDependency(packageSwift);
+            if (injected) {
+              spinner.succeed("PathTerminalSDK added to Package.swift.");
+              actions.push("PathTerminalSDK added to Package.swift");
+              manualSteps.push(
+                `Open Xcode and link all three targets to your app: PathTerminalSDK, PathEmulatorAdapter, PathCoreModels.`
+              );
+            } else {
+              spinner.warn("Could not automatically modify Package.swift — manual step required.");
+              manualSteps.push(
+                `Add PathTerminalSDK manually to Package.swift:\n` +
+                  `     .package(url: "${SDK_GITHUB_URL}", from: "${SDK_VERSION}")`
+              );
+            }
+          }
+        } else if (xcodeProject) {
+          spinner.succeed(`Found Xcode project: ${path.basename(xcodeProject)}`);
+          if (hasXcodeProjectSDKDependency(xcodeProject)) {
+            spinner.succeed("PathTerminalSDK already present in Xcode project.");
+            actions.push("PathTerminalSDK dependency already present — no change needed.");
+          } else {
+            console.log(
+              chalk.yellow(
+                "\n  ⚠ Automatic SPM injection into .xcodeproj is not supported (Xcode manages this)."
+              )
+            );
+            console.log(chalk.bold("\n  To add PathTerminalSDK in Xcode:"));
+            console.log("  1. Open your project in Xcode");
+            console.log("  2. File → Add Package Dependencies…");
+            console.log(`  3. Enter URL: ${chalk.cyan(SDK_GITHUB_URL)}`);
+            console.log(
+              "  4. In the 'Choose Package Products' dialog, set all three to your app target:"
+            );
+            console.log(chalk.cyan("       PathTerminalSDK    → your app target"));
+            console.log(chalk.cyan("       PathEmulatorAdapter → your app target"));
+            console.log(chalk.cyan("       PathCoreModels      → your app target"));
+            console.log(chalk.dim("     (PathDiagnostics can be left as None)"));
+            console.log("  5. Click Add Package\n");
+            const confirmed = await ask(
+              chalk.bold("  Press Enter once you have added the package, or type 'skip' to do this later: ")
+            );
+            if (confirmed.toLowerCase() !== "skip") {
+              actions.push(`PathTerminalSDK added to Xcode project (confirmed by user)`);
+            } else {
+              manualSteps.push(
+                `Add PathTerminalSDK via Xcode: File → Add Package Dependencies → ${SDK_GITHUB_URL}`
+              );
+            }
+          }
+        } else {
+          spinner.warn("No Xcode project found in current directory.");
+          const answer = await ask(
+            chalk.yellow(
+              "  No .xcodeproj or Package.swift found. Continue with tools-only setup? (y/n): "
+            )
           );
-          process.exit(0);
+          if (answer.toLowerCase() !== "y") {
+            console.log(
+              chalk.dim("\n  Run this command from your Xcode project directory, or use --tools-only.\n")
+            );
+            process.exit(0);
+          }
+          warnings.push("Ran in tools-only mode — no Xcode project found.");
         }
-        warnings.push("Ran in tools-only mode — no Xcode project found.");
       }
     } else {
       actions.push("Skipped SDK installation (--tools-only mode)");
@@ -433,12 +583,15 @@ program
       let result: { written: boolean; skipped: boolean };
       let rulesFile: string;
 
+      // For Android, use the android-specific rules source
+      const activeRulesSource = isAndroid ? ANDROID_RULES_SOURCE : RULES_SOURCE;
+
       if (agent === "claude") {
-        result = writeClaudeRulesFile(cwd);
+        result = writeClaudeRulesFile(cwd, activeRulesSource);
         rulesFile = "CLAUDE.md";
       } else {
-        result = writeCursorRulesFile(cwd);
-        rulesFile = ".cursor/rules/path-integration.mdc";
+        result = writeCursorRulesFile(cwd, activeRulesSource, isAndroid ? "path-integration-android.mdc" : "path-integration.mdc");
+        rulesFile = isAndroid ? ".cursor/rules/path-integration-android.mdc" : ".cursor/rules/path-integration.mdc";
       }
 
       if (result.written) {
@@ -459,31 +612,51 @@ program
       }
     }
 
-    // ── 4. Info.plist check ───────────────────────────────────────────────────
+    // ── 4. Permission check ───────────────────────────────────────────────────
     if (!toolsOnly) {
-      const spinner = ora("Checking Info.plist BLE permissions…").start();
-      const plistsWithIssues = checkInfoPlist(cwd);
-      if (plistsWithIssues.length === 0) {
-        spinner.succeed("BLE permissions found in Info.plist.");
-        actions.push("BLE permissions verified in Info.plist");
-      } else {
-        spinner.warn(
-          `NSBluetoothAlwaysUsageDescription missing from ${plistsWithIssues.length} Info.plist file(s).`
-        );
-        plistsWithIssues.forEach((p) => {
-          const relative = path.relative(cwd, p);
-          manualSteps.push(
-            `Add BLE permission to ${relative}:\n` +
-              `     <key>NSBluetoothAlwaysUsageDescription</key>\n` +
-              `     <string>This app connects to a Path payment terminal via Bluetooth.</string>\n` +
-              `     (Ask the MCP: "get_info_plist_requirements" for the full XML)`
+      if (isAndroid) {
+        const spinner = ora("Checking AndroidManifest.xml BLE permissions…").start();
+        const manifestsWithIssues = checkAndroidManifest(cwd);
+        if (manifestsWithIssues.length === 0) {
+          spinner.succeed("BLE permissions found in AndroidManifest.xml.");
+          actions.push("BLE permissions verified in AndroidManifest.xml");
+        } else {
+          spinner.warn(
+            `BLUETOOTH_SCAN missing from ${manifestsWithIssues.length} AndroidManifest.xml file(s).`
           );
-        });
+          manifestsWithIssues.forEach((p) => {
+            const relative = path.relative(cwd, p);
+            manualSteps.push(
+              `Add BLE permissions to ${relative}:\n` +
+              `     (Ask the MCP: "get_manifest_requirements" for the full XML)`
+            );
+          });
+        }
+      } else {
+        const spinner = ora("Checking Info.plist BLE permissions…").start();
+        const plistsWithIssues = checkInfoPlist(cwd);
+        if (plistsWithIssues.length === 0) {
+          spinner.succeed("BLE permissions found in Info.plist.");
+          actions.push("BLE permissions verified in Info.plist");
+        } else {
+          spinner.warn(
+            `NSBluetoothAlwaysUsageDescription missing from ${plistsWithIssues.length} Info.plist file(s).`
+          );
+          plistsWithIssues.forEach((p) => {
+            const relative = path.relative(cwd, p);
+            manualSteps.push(
+              `Add BLE permission to ${relative}:\n` +
+                `     <key>NSBluetoothAlwaysUsageDescription</key>\n` +
+                `     <string>This app connects to a Path payment terminal via Bluetooth.</string>\n` +
+                `     (Ask the MCP: "get_info_plist_requirements" for the full XML)`
+            );
+          });
+        }
       }
     }
 
     // ── 5. Summary ────────────────────────────────────────────────────────────
-    printSummary(agent, actions, warnings, manualSteps);
+    printSummary(agent, platform, actions, warnings, manualSteps);
   });
 
 program.parse(process.argv);

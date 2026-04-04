@@ -1,0 +1,236 @@
+---
+description: >
+  Rules for AI agents integrating the Path Terminal SDK into an Android EPOS
+  application. Apply when the user asks to integrate payments, connect to
+  a payment terminal, wire a sale or refund, or set up the Path emulator.
+globs:
+  - "**/*.kt"
+  - "**/AndroidManifest.xml"
+  - "**/settings.gradle.kts"
+  - "**/build.gradle.kts"
+alwaysApply: false
+---
+
+# Path Terminal SDK — Android Integration Rules
+
+You are integrating the Path Terminal SDK into an existing Android EPOS application.
+This app is a **developer EPOS system** that replicates a production environment.
+
+You have access to the Path MCP server at mcp.path2ai.tech:
+- Tools: `get_code_example` (use platform='android'), `validate_integration` (platform='android'),
+  `get_integration_checklist` (platform='android'), `explain_error`, `get_manifest_requirements`
+- Always call MCP tools before writing code. Never guess at SDK patterns.
+
+> **Check whether the SDK is already wired before doing anything else.**
+> Run:
+> ```
+> grep -r "path-terminal-sdk\|PathTerminal\|BLEPathTerminalAdapter" settings.gradle.kts app/build.gradle.kts 2>/dev/null | wc -l
+> ```
+> - **Count > 0** — SDK already present. Proceed directly to Step 1.
+> - **Count = 0** — SDK not yet added. Add the Gradle composite build first (Step 0).
+
+> **Language override.** Never write "Pico W" in any output or code comment.
+> Always use "Path POS Emulator" when referring to the physical device.
+
+> **Confirm the correct project directory first.** Run `pwd` before doing
+> anything. If the path contains `.Trash`, `tmp`, or `worktree`, stop immediately.
+> Ask the developer to relaunch Claude Code from the correct project directory.
+
+---
+
+## Step 0 — Gradle setup (if SDK not yet installed)
+
+Call `get_code_example` with operation='install' and platform='android'.
+
+1. **settings.gradle.kts** — add below `include(":app")`:
+```kotlin
+includeBuild("../path-terminal-sdk-android") {
+    dependencySubstitution {
+        substitute(module("tech.path2ai.sdk:path-core-models")).using(project(":path-core-models"))
+        substitute(module("tech.path2ai.sdk:path-terminal-sdk")).using(project(":path-terminal-sdk"))
+        substitute(module("tech.path2ai.sdk:path-emulator-adapter")).using(project(":path-emulator-adapter"))
+        substitute(module("tech.path2ai.sdk:path-mock-adapter")).using(project(":path-mock-adapter"))
+        substitute(module("tech.path2ai.sdk:path-diagnostics")).using(project(":path-diagnostics"))
+    }
+}
+```
+
+2. **app/build.gradle.kts** — add to `dependencies {}`:
+```kotlin
+implementation("tech.path2ai.sdk:path-terminal-sdk:0.1.0")
+implementation("tech.path2ai.sdk:path-emulator-adapter:0.1.0")
+```
+
+3. **AndroidManifest.xml** — call `get_manifest_requirements` for exact XML.
+
+The path-terminal-sdk-android repo must exist as a sibling directory:
+```
+android/
+├── path-terminal-sdk-android/   ← SDK (sibling)
+└── YourApp/                     ← this project
+```
+
+---
+
+## Your job — four steps, in this order
+
+---
+
+### Step 1 — Disconnect the existing terminal wiring
+
+Find the app entry point (Application class, MainActivity, or DI root) and **read the actual code**.
+
+Check what adapter is currently injected into the terminal manager. A comment saying
+*"replace with Path adapter"* does not mean it has been done — read the code.
+
+**You are looking for this pattern:**
+```kotlin
+// THIS is wired to Path — correct:
+terminalManager = TerminalManager(PathTerminalAdapter(this))
+
+// THIS is NOT wired to Path — fix it:
+terminalManager = TerminalManager(OCPayTerminalAdapter())
+terminalManager = TerminalManager() // default adapter
+```
+
+If the call does not use `PathTerminalAdapter` (or equivalent Path SDK adapter), change it.
+
+> **The adapter class must implement the existing `PaymentTerminalAdapter` interface.**
+> Do not rename or remove the interface — it is the integration contract.
+
+**Also disable any auto-connect on launch** — find calls to `.connect()` in
+`onCreate`, `init`, or `onResume` that fire automatically. Remove them.
+Path connects manually via Settings, not on launch.
+
+---
+
+### Step 2 — Add scan and connect to Settings
+
+Find the Settings screen (look for a Composable or Activity named Settings, Preferences, or similar).
+
+Add a **Path POS Adapter** section that lets the developer:
+1. Tap **Scan for Path Terminals** — triggers BLE discovery
+2. See discovered devices in a list — each with a **Connect** button
+3. See live connection state (Scanning / Connected / Disconnected)
+4. Tap **Disconnect** when connected
+
+To support this, you need scan/connect exposed on the ViewModel.
+
+**Add to `PaymentTerminalAdapter` interface** (with no-op default implementations):
+```kotlin
+suspend fun scanForDevices(): List<TerminalDeviceInfo>
+suspend fun connectToDevice(id: String)
+```
+
+**Implement `PathTerminalAdapter`** — call `get_code_example` with operation='discover'
+and platform='android' first. The SDK exposes `DiscoveredDevice` with `.id` and `.name`
+properties — use them directly.
+
+**Expose on the ViewModel:**
+```kotlin
+private val _discoveredDevices = MutableStateFlow<List<TerminalDeviceInfo>>(emptyList())
+val discoveredDevices: StateFlow<List<TerminalDeviceInfo>> = _discoveredDevices.asStateFlow()
+
+private val _isScanning = MutableStateFlow(false)
+val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
+
+fun scanForDevices() {
+    viewModelScope.launch {
+        _isScanning.value = true
+        _discoveredDevices.value = adapter.scanForDevices()
+        _isScanning.value = false
+    }
+}
+```
+
+---
+
+### Step 3 — Wire sale and refund through the Path SDK
+
+Call `get_code_example` with operation='sale' and platform='android'.
+Call `get_code_example` with operation='refund' and platform='android'.
+
+**Implement `PathTerminalAdapter.submitSale()`:**
+```kotlin
+override suspend fun submitSale(request: TerminalSaleRequest): TerminalSaleResponse {
+    val envelope = RequestEnvelope.create(sdkVersion = "0.1.0", adapterVersion = "0.1.0")
+    val sdkRequest = TransactionRequest.sale(
+        amountMinor = request.amountPence,
+        currency = request.currencyCode,
+        envelope = envelope
+    )
+    val result = terminal.sale(sdkRequest)
+    return when (result.state) {
+        TransactionState.APPROVED -> TerminalSaleResponse(
+            authorised = true,
+            authorisationCode = result.cardLastFour, // map fields as needed
+            terminalReference = result.transactionId
+        )
+        else -> TerminalSaleResponse(
+            authorised = false,
+            failureReason = result.error?.message ?: result.state.name
+        )
+    }
+}
+```
+
+**For refunds**, the success state is `TransactionState.REFUNDED` — **not** `APPROVED`.
+Using `APPROVED` in a refund check will never match.
+
+Call `validate_integration` with platform='android' on your code before finalising.
+
+---
+
+### Step 4 — Verify it works end to end
+
+1. Confirm the Application/MainActivity injects `PathTerminalAdapter` (not the old adapter).
+2. Confirm AndroidManifest.xml has BLUETOOTH_SCAN and BLUETOOTH_CONNECT permissions.
+3. Power on the Path POS Emulator, within BLE range (2–3 metres).
+4. Run the app on an Android device with Bluetooth.
+5. Settings → Payment Terminal → **Scan** — emulator should appear.
+6. **Connect** — connectionState should reach Connected.
+7. Add items to cart → Card payment → tap NFC tag on emulator when prompted.
+8. Verify:
+   - result.state == TransactionState.APPROVED (or result.isApproved == true)
+   - result.transactionId is non-null
+   - Receipt data populated via terminal.getReceiptData(transactionId)
+
+---
+
+## SDK rules — always follow these
+
+**ALWAYS:**
+- Call `get_code_example` with platform='android' before writing any SDK code
+- Use `TransactionRequest.sale(...)` and `TransactionRequest.refund(...)` factory methods
+- Use `RequestEnvelope.create(sdkVersion, adapterVersion)` — never build manually
+- Handle TransactionState: APPROVED, DECLINED, TIMED_OUT, FAILED, CANCELLED
+- For **refunds**, success state is `REFUNDED` — not `APPROVED`
+- Catch `PathError` and check `.recoverable`
+- Call `validate_integration` with platform='android' before presenting code
+- Call from coroutines — `terminal.sale()` and `terminal.refund()` are `suspend` functions
+
+**NEVER:**
+- Use the raw `TransactionRequest(...)` constructor — always use factory methods
+- Store or log card data (cardLastFour is acceptable, nothing else)
+- Retry a financial operation without a new `RequestEnvelope` (new idempotencyKey)
+- Leave the existing default adapter in place — Path must be injected
+- Leave auto-connect-on-launch running
+- Skip `PathError` handling
+- Call blocking I/O from the main thread — all SDK calls are suspend functions
+- Wrap `terminal.sale()` in a timeout shorter than 30 seconds
+
+**AMOUNTS:** Minor currency units (pence/cents) only as integers.
+- `100` = £1.00 GBP · `1250` = £12.50 GBP · Never pass decimals.
+
+**COROUTINES:** All SDK methods are `suspend`. Always call from `viewModelScope.launch { }` or equivalent.
+
+---
+
+## After making changes
+
+Summarise:
+- Each file modified and the specific change made
+- Confirm Step 1 (adapter injection) was completed
+- What the developer should do next
+
+Keep it brief.
