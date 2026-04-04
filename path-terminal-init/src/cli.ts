@@ -10,6 +10,8 @@ import ora from "ora";
 const SDK_GITHUB_URL = "https://github.com/keyman12/path-terminal-sdk";
 const ANDROID_SDK_GITHUB_URL = "https://github.com/keyman12/path-terminal-sdk-android";
 const SDK_VERSION = "0.1.0"; // minimum version to reference
+const ANDROID_SDK_JITPACK_VERSION = "v1.0";
+const ANDROID_SDK_JITPACK_GROUP = "com.github.keyman12.path-terminal-sdk-android";
 const MCP_SERVER_URL = "https://mcp.path2ai.tech/sse";
 
 const RULES_SOURCE = path.join(__dirname, "../rules/path-integration.mdc");
@@ -239,37 +241,27 @@ function findAndroidProject(dir: string): boolean {
 }
 
 function hasAndroidSDKDependency(dir: string): boolean {
+  // Check settings.gradle.kts has JitPack repo
   const settingsPath = path.join(dir, "settings.gradle.kts");
   if (!fs.existsSync(settingsPath)) return false;
   const settings = fs.readFileSync(settingsPath, "utf-8");
-  const hasComposite = settings.includes("path-terminal-sdk-android") || settings.includes("path-terminal-sdk");
-  if (!hasComposite) return false;
-  // Also check that build.gradle.kts has the dependency uncommented
+  if (!settings.includes("jitpack.io")) return false;
+  // Check build.gradle.kts has the dependency uncommented
   const buildPath = path.join(dir, "app", "build.gradle.kts");
   if (!fs.existsSync(buildPath)) return true;
   const build = fs.readFileSync(buildPath, "utf-8");
-  return /^\s*implementation\("tech\.path2ai\.sdk:path-terminal-sdk/m.test(build);
+  return /^\s*implementation\("com\.github\.keyman12\.path-terminal-sdk-android:path-terminal-sdk/m.test(build);
 }
 
-function injectGradleCompositeB(dir: string): boolean {
+function injectJitPackRepo(dir: string): boolean {
   const settingsPath = path.join(dir, "settings.gradle.kts");
   if (!fs.existsSync(settingsPath)) return false;
   let content = fs.readFileSync(settingsPath, "utf-8");
-  if (hasAndroidSDKDependency(dir)) return false; // already present
-
-  const compositeBlock = `
-// Include Path SDK modules via composite build
-includeBuild("../path-terminal-sdk-android") {
-    dependencySubstitution {
-        substitute(module("tech.path2ai.sdk:path-core-models")).using(project(":path-core-models"))
-        substitute(module("tech.path2ai.sdk:path-terminal-sdk")).using(project(":path-terminal-sdk"))
-        substitute(module("tech.path2ai.sdk:path-emulator-adapter")).using(project(":path-emulator-adapter"))
-        substitute(module("tech.path2ai.sdk:path-mock-adapter")).using(project(":path-mock-adapter"))
-        substitute(module("tech.path2ai.sdk:path-diagnostics")).using(project(":path-diagnostics"))
-    }
-}
-`;
-  content += compositeBlock;
+  if (content.includes("jitpack.io")) return true; // already present
+  // Add jitpack inside dependencyResolutionManagement repositories block
+  const repoRegex = /(dependencyResolutionManagement\s*\{[^}]*repositories\s*\{)/s;
+  if (!repoRegex.test(content)) return false;
+  content = content.replace(repoRegex, `$1\n        maven { url = uri("https://jitpack.io") }`);
   fs.writeFileSync(settingsPath, content, "utf-8");
   return true;
 }
@@ -280,23 +272,27 @@ function injectGradleDependencies(dir: string): boolean {
   let content = fs.readFileSync(buildPath, "utf-8");
 
   // Already present and uncommented — nothing to do
-  if (/^\s*implementation\("tech\.path2ai\.sdk:path-terminal-sdk/.test(content)) return true;
+  if (/^\s*implementation\("com\.github\.keyman12\.path-terminal-sdk-android:path-terminal-sdk/m.test(content)) return true;
 
   // Present but commented out — uncomment those lines
-  if (content.includes("path-terminal-sdk")) {
+  if (content.includes("path-terminal-sdk-android")) {
     content = content
-      .replace(/^\s*\/\/\s*implementation\("tech\.path2ai\.sdk:path-terminal-sdk[^"]*"\)/gm,
-        '    implementation("tech.path2ai.sdk:path-terminal-sdk:0.1.0")')
-      .replace(/^\s*\/\/\s*implementation\("tech\.path2ai\.sdk:path-emulator-adapter[^"]*"\)/gm,
-        '    implementation("tech.path2ai.sdk:path-emulator-adapter:0.1.0")')
-      .replace(/^\s*\/\/\s*implementation\("tech\.path2ai\.sdk:path-core-models[^"]*"\)/gm,
-        '    implementation("tech.path2ai.sdk:path-core-models:0.1.0")');
+      .replace(/^\s*\/\/\s*implementation\("com\.github\.keyman12\.path-terminal-sdk-android:path-core-models[^"]*"\)/gm,
+        `    implementation("${ANDROID_SDK_JITPACK_GROUP}:path-core-models:${ANDROID_SDK_JITPACK_VERSION}")`)
+      .replace(/^\s*\/\/\s*implementation\("com\.github\.keyman12\.path-terminal-sdk-android:path-terminal-sdk[^"]*"\)/gm,
+        `    implementation("${ANDROID_SDK_JITPACK_GROUP}:path-terminal-sdk:${ANDROID_SDK_JITPACK_VERSION}")`)
+      .replace(/^\s*\/\/\s*implementation\("com\.github\.keyman12\.path-terminal-sdk-android:path-emulator-adapter[^"]*"\)/gm,
+        `    implementation("${ANDROID_SDK_JITPACK_GROUP}:path-emulator-adapter:${ANDROID_SDK_JITPACK_VERSION}")`);
     fs.writeFileSync(buildPath, content, "utf-8");
     return true;
   }
 
   // Not present at all — inject after opening brace
-  const deps = `    implementation("tech.path2ai.sdk:path-terminal-sdk:0.1.0")\n    implementation("tech.path2ai.sdk:path-emulator-adapter:0.1.0")\n`;
+  const deps = [
+    `    implementation("${ANDROID_SDK_JITPACK_GROUP}:path-core-models:${ANDROID_SDK_JITPACK_VERSION}")`,
+    `    implementation("${ANDROID_SDK_JITPACK_GROUP}:path-terminal-sdk:${ANDROID_SDK_JITPACK_VERSION}")`,
+    `    implementation("${ANDROID_SDK_JITPACK_GROUP}:path-emulator-adapter:${ANDROID_SDK_JITPACK_VERSION}")`,
+  ].join("\n") + "\n";
   const depsRegex = /(dependencies\s*\{)/;
   if (!depsRegex.test(content)) return false;
   content = content.replace(depsRegex, `$1\n${deps}`);
@@ -444,7 +440,7 @@ program
     // ── 1. SDK installation ───────────────────────────────────────────────────
     if (!toolsOnly) {
       if (isAndroid) {
-        // ── Android: Gradle composite build ──
+        // ── Android: JitPack + Gradle ──
         const spinner = ora("Checking Android project…").start();
 
         if (!findAndroidProject(cwd)) {
@@ -461,13 +457,13 @@ program
           spinner.succeed("Path Terminal SDK already present in settings.gradle.kts.");
           actions.push("SDK dependency already present — no change needed.");
         } else {
-          spinner.text = "Adding SDK composite build to settings.gradle.kts…";
-          const settingsOk = injectGradleCompositeB(cwd);
+          spinner.text = "Adding JitPack repository to settings.gradle.kts…";
+          const settingsOk = injectJitPackRepo(cwd);
           const depsOk = injectGradleDependencies(cwd);
 
           if (settingsOk) {
-            spinner.succeed("Added SDK includeBuild to settings.gradle.kts.");
-            actions.push("SDK composite build added to settings.gradle.kts");
+            spinner.succeed("JitPack repository added to settings.gradle.kts.");
+            actions.push("JitPack repository added to settings.gradle.kts");
           }
           if (depsOk) {
             spinner.succeed("SDK dependencies added to app/build.gradle.kts.");
@@ -476,17 +472,8 @@ program
             spinner.warn("Could not auto-inject dependencies into app/build.gradle.kts.");
             manualSteps.push(
               `Add to app/build.gradle.kts dependencies {}:\n` +
-              `     implementation("tech.path2ai.sdk:path-terminal-sdk:${SDK_VERSION}")\n` +
-              `     implementation("tech.path2ai.sdk:path-emulator-adapter:${SDK_VERSION}")`
-            );
-          }
-
-          // Remind about sibling SDK repo
-          const sdkSiblingPath = path.join(cwd, "..", "path-terminal-sdk-android");
-          if (!fs.existsSync(sdkSiblingPath)) {
-            manualSteps.push(
-              `Clone path-terminal-sdk-android as a sibling directory:\n` +
-              `     cd .. && git clone ${ANDROID_SDK_GITHUB_URL}`
+              `     implementation("${ANDROID_SDK_JITPACK_GROUP}:path-terminal-sdk:${ANDROID_SDK_JITPACK_VERSION}")\n` +
+              `     implementation("${ANDROID_SDK_JITPACK_GROUP}:path-emulator-adapter:${ANDROID_SDK_JITPACK_VERSION}")`
             );
           }
         }
