@@ -241,8 +241,14 @@ function findAndroidProject(dir: string): boolean {
 function hasAndroidSDKDependency(dir: string): boolean {
   const settingsPath = path.join(dir, "settings.gradle.kts");
   if (!fs.existsSync(settingsPath)) return false;
-  const content = fs.readFileSync(settingsPath, "utf-8");
-  return content.includes("path-terminal-sdk-android") || content.includes("path-terminal-sdk");
+  const settings = fs.readFileSync(settingsPath, "utf-8");
+  const hasComposite = settings.includes("path-terminal-sdk-android") || settings.includes("path-terminal-sdk");
+  if (!hasComposite) return false;
+  // Also check that build.gradle.kts has the dependency uncommented
+  const buildPath = path.join(dir, "app", "build.gradle.kts");
+  if (!fs.existsSync(buildPath)) return true;
+  const build = fs.readFileSync(buildPath, "utf-8");
+  return /^\s*implementation\("tech\.path2ai\.sdk:path-terminal-sdk/m.test(build);
 }
 
 function injectGradleCompositeB(dir: string): boolean {
@@ -272,8 +278,24 @@ function injectGradleDependencies(dir: string): boolean {
   const buildPath = path.join(dir, "app", "build.gradle.kts");
   if (!fs.existsSync(buildPath)) return false;
   let content = fs.readFileSync(buildPath, "utf-8");
-  if (content.includes("path-terminal-sdk")) return false; // already present
 
+  // Already present and uncommented — nothing to do
+  if (/^\s*implementation\("tech\.path2ai\.sdk:path-terminal-sdk/.test(content)) return true;
+
+  // Present but commented out — uncomment those lines
+  if (content.includes("path-terminal-sdk")) {
+    content = content
+      .replace(/^\s*\/\/\s*implementation\("tech\.path2ai\.sdk:path-terminal-sdk[^"]*"\)/gm,
+        '    implementation("tech.path2ai.sdk:path-terminal-sdk:0.1.0")')
+      .replace(/^\s*\/\/\s*implementation\("tech\.path2ai\.sdk:path-emulator-adapter[^"]*"\)/gm,
+        '    implementation("tech.path2ai.sdk:path-emulator-adapter:0.1.0")')
+      .replace(/^\s*\/\/\s*implementation\("tech\.path2ai\.sdk:path-core-models[^"]*"\)/gm,
+        '    implementation("tech.path2ai.sdk:path-core-models:0.1.0")');
+    fs.writeFileSync(buildPath, content, "utf-8");
+    return true;
+  }
+
+  // Not present at all — inject after opening brace
   const deps = `    implementation("tech.path2ai.sdk:path-terminal-sdk:0.1.0")\n    implementation("tech.path2ai.sdk:path-emulator-adapter:0.1.0")\n`;
   const depsRegex = /(dependencies\s*\{)/;
   if (!depsRegex.test(content)) return false;
@@ -448,6 +470,7 @@ program
             actions.push("SDK composite build added to settings.gradle.kts");
           }
           if (depsOk) {
+            spinner.succeed("SDK dependencies added to app/build.gradle.kts.");
             actions.push("path-terminal-sdk + path-emulator-adapter added to app/build.gradle.kts");
           } else {
             spinner.warn("Could not auto-inject dependencies into app/build.gradle.kts.");
